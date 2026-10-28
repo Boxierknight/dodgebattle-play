@@ -36,7 +36,7 @@
   .soundbtn { margin-left: auto; font-family: var(--pixel); font-size: 9px; color: var(--ink); background: #2a2436; border: 2px solid var(--ink); padding: 6px 8px; cursor: pointer; }
   .soundbtn:focus-visible { outline: 2px dashed var(--gold); outline-offset: 2px; }
   .soundbtn[aria-pressed="false"] { color: var(--dim); border-color: var(--dim); }
-  h1 .sub { font-size: .5em; color: var(--ink); text-shadow: 2px 2px 0 var(--red); }
+  h1 .sub { font-size: .38em; color: var(--ink); text-shadow: 1px 1px 0 var(--red); letter-spacing: 0; }
   .tag { font-family: var(--pixel); font-size: 9px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; }
 
   .screen { background: var(--tv); border: 4px solid #000; box-shadow: 0 0 0 3px #3a3448, 0 14px 30px rgba(0,0,0,.45); }
@@ -112,6 +112,12 @@
 
   @media (max-width: 640px) {
     .hud { grid-template-columns: 1fr 1fr; }
+    /* Scoreboard on phones: Red and Blue share the top line, turn status gets its own line. */
+    .scorebar { grid-template-columns: 1fr 1fr; row-gap: 6px; padding: 6px 8px; }
+    .turnlabel { grid-column: 1 / -1; grid-row: 2; justify-content: center; }
+    .side { gap: 5px; }
+    .pips { gap: 2px; }
+    .pip { width: 5px; height: 8px; }
     .msg { grid-column: 1 / -1; min-height: 0; }
     .box { min-height: 0; }
   }
