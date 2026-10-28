@@ -1,0 +1,963 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DodgeBattle</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600&display=swap">
+<style>
+  /* Layout: one NES "TV" screen (scoreboard, court, menu boxes) that fits without scrolling; notes below. Single dark look by choice. */
+  :root {
+    color-scheme: dark;
+    --tv: #0b0b12;        /* screen black */
+    --page: #17141f;      /* room around the TV */
+    --ink: #fcfcfc;       /* NES white */
+    --dim: #a8a8b8;
+    --red: #d82800;       /* NES red */
+    --blue: #3c7cfc;      /* NES light blue (reads on black) */
+    --gold: #f8b800;      /* NES yellow */
+    --green: #58d854;     /* NES green */
+    --pixel: "Press Start 2P", "Courier New", monospace;
+    --body: "Pixelify Sans", "Trebuchet MS", system-ui, sans-serif;
+  }
+  html, body { height: 100%; }
+  body {
+    background: var(--page); color: var(--ink); font-family: var(--body); font-size: 16px; margin: 0;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 16px;
+  }
+  /* Width is capped by the window height so the whole screen (court + menus) fits without scrolling. */
+  .wrap { max-width: max(320px, min(860px, calc((100svh - 280px) * 1.4545))); margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+  h1 { margin: 0; font-family: var(--pixel); font-weight: 400; font-size: clamp(16px, 3.4vw, 24px); color: var(--gold); text-shadow: 3px 3px 0 var(--red); letter-spacing: 1px; }
+  .soundbtn { margin-left: auto; font-family: var(--pixel); font-size: 9px; color: var(--ink); background: #2a2436; border: 2px solid var(--ink); padding: 6px 8px; cursor: pointer; }
+  .soundbtn:focus-visible { outline: 2px dashed var(--gold); outline-offset: 2px; }
+  .soundbtn[aria-pressed="false"] { color: var(--dim); border-color: var(--dim); }
+  .tag { font-family: var(--pixel); font-size: 9px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; }
+
+  .screen { background: var(--tv); border: 4px solid #000; box-shadow: 0 0 0 3px #3a3448, 0 14px 30px rgba(0,0,0,.45); }
+  .scorebar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 8px 10px; font-family: var(--pixel); font-size: clamp(8px, 1.4vw, 11px); border-bottom: 3px solid #000; }
+  .side { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .side.blue { justify-content: flex-end; }
+  .pips { display: flex; gap: 3px; }
+  .pip { width: 8px; height: 10px; background: currentColor; }
+  .pip.out { background: transparent; box-shadow: inset 0 0 0 2px currentColor; opacity: .5; }
+  .red { color: var(--red); } .blue { color: var(--blue); }
+  .turnlabel { color: var(--dim); text-align: center; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+  .turnchip { padding: 4px 8px; color: #fff; border: 2px solid #000; box-shadow: 0 0 0 2px currentColor; animation: chip 1s steps(1) infinite; }
+  .turnchip.red { background: var(--red); color: #fff; }
+  .turnchip.blue { background: #0058f8; color: #fff; }
+  @keyframes chip { 50% { filter: brightness(1.35); } }
+  .side { padding: 4px 8px; border: 2px solid transparent; }
+  .side.on.red { border-color: var(--red); background: rgba(216,40,0,.22); }
+  .side.on.blue { border-color: var(--blue); background: rgba(60,124,252,.22); }
+  .side .arrow { visibility: hidden; color: var(--gold); }
+  .side.on .arrow { visibility: visible; animation: chip .6s steps(1) infinite; }
+  #banner { position: absolute; left: 0; right: 0; top: 42%; text-align: center; font-family: var(--pixel); font-size: calc(var(--u) * 22px);
+    color: #fff; padding: calc(var(--u) * 8px) 0; border-block: 4px solid #000; pointer-events: none; text-shadow: 3px 3px 0 #000;
+    animation: sweep 1.3s ease-out forwards; }
+  #banner.red { background: rgba(216,40,0,.92); }
+  #banner.blue { background: rgba(0,88,248,.92); }
+  @keyframes sweep { 0% { transform: translateX(-100%); } 18% { transform: translateX(0); } 82% { transform: translateX(0); opacity: 1; } 100% { transform: translateX(100%); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { #banner { animation: none; } .turnchip, .side.on .arrow { animation: none; } }
+
+  .court { position: relative; width: 100%; aspect-ratio: 384 / 264; max-width: 100%; }
+  #c { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; cursor: pointer; display: block; }
+  #labels { position: absolute; inset: 0; pointer-events: none; }
+  .nm { position: absolute; transform: translateX(-50%); font-family: var(--pixel); font-size: calc(var(--u) * 5px); color: var(--ink); text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000; white-space: nowrap; }
+  .nm.outp { color: var(--dim); }
+  .nm .x { color: var(--gold); }
+  .nm.rowtag { color: var(--gold); font-size: calc(var(--u) * 4.5px); }
+
+  .hud { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 8px; padding: 8px; border-top: 3px solid #000; }
+  .box { border: 3px solid var(--ink); border-radius: 6px; box-shadow: inset 0 0 0 2px #000, inset 0 0 0 4px #4a4a5a; padding: 10px 12px; font-family: var(--pixel); font-size: clamp(8px, 1.3vw, 10px); line-height: 1.75; min-width: 0; min-height: 118px; }
+  .msg p { margin: 0; }
+  .msg.alert { border-color: var(--red); animation: alertblink .5s steps(1) infinite; }
+  .msg.alert .big { color: var(--red); }
+  @keyframes alertblink { 50% { border-color: var(--ink); } }
+  @media (prefers-reduced-motion: reduce) { .msg.alert { animation: none; } }
+  .msg .big { color: var(--gold); }
+  .msg .hit { color: var(--red); } .msg .safe { color: var(--green); }
+  .roll { display: inline-block; min-width: 2.2em; text-align: center; background: var(--ink); color: #000; padding: 0 3px; }
+  .menu { display: flex; flex-direction: column; gap: 4px; }
+  .menu .ttl { color: var(--dim); margin-bottom: 2px; }
+  .menu button { all: unset; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; padding: 2px 4px 2px 16px; position: relative; color: var(--ink); }
+  .menu button::before { content: "\25B6"; position: absolute; left: 0; color: var(--gold); opacity: 0; }
+  .menu button:hover::before, .menu button:focus-visible::before { opacity: 1; }
+  .menu button:focus-visible { outline: 2px dashed var(--gold); outline-offset: 2px; }
+  .menu button .m { color: var(--gold); }
+  .menu button[disabled] { color: #5a5a6a; cursor: default; }
+  .menu button[disabled]::before { opacity: 0; }
+  .card h3 { margin: 0 0 4px; font-weight: 400; font-size: inherit; }
+  .stats { display: grid; grid-template-columns: auto auto auto; gap: 0 10px; font-variant-numeric: tabular-nums; }
+  .stats .k { color: var(--dim); } .stats .m { color: var(--gold); text-align: right; }
+  .vs { display: grid; grid-template-columns: auto 1fr 1fr; gap: 1px 6px; font-variant-numeric: tabular-nums; font-size: .92em; overflow: hidden; }
+  .vs > span { white-space: nowrap; }
+  .vs .k { color: var(--dim); }
+  .vs .off { color: #6a6a7a; }
+  .vs .off b { font-weight: 400; color: #6a6a7a; margin-left: 2px; }
+  .vs .on { color: var(--ink); }
+  .vs .on b { font-weight: 400; color: var(--gold); margin-left: 2px; }
+  .msg .safe { color: var(--green); }
+
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 24px; color: var(--dim); line-height: 1.45; }
+  .notes h2 { margin: 0 0 6px; font-family: var(--pixel); font-weight: 400; font-size: 10px; color: var(--ink); letter-spacing: 1px; }
+  .notes ul { margin: 0; padding-left: 18px; }
+  .notes li { margin-bottom: 4px; }
+  .notes b { color: var(--ink); font-weight: 600; }
+
+  @media (max-width: 640px) {
+    .hud { grid-template-columns: 1fr 1fr; }
+    .msg { grid-column: 1 / -1; min-height: 0; }
+    .box { min-height: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .menu button::before { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>DODGEBATTLE</h1>
+    <span class="tag">6 v 6 &middot; d20 tactical dodgeball &middot; you are red</span>
+    <button type="button" id="sound" class="soundbtn" aria-pressed="true">SOUND: ON</button>
+  </header>
+
+  <div class="screen" aria-label="Game screen">
+    <div class="scorebar">
+      <div class="side red" id="redSide"><span class="arrow">&#9654;</span><span>RED</span><span class="pips" id="redPips"></span><span id="redBalls"></span></div>
+      <div class="turnlabel" id="turnLabel"></div>
+      <div class="side blue" id="blueSide"><span id="blueBalls"></span><span class="pips" id="bluePips"></span><span>BLUE</span><span class="arrow">&#9664;</span></div>
+    </div>
+    <div class="court" id="court">
+      <canvas id="c" width="384" height="264" aria-label="Dodgeball court"></canvas>
+      <div id="labels"></div>
+      <div id="banner" hidden></div>
+    </div>
+    <div class="hud">
+      <div class="box msg" id="msg" aria-live="polite"></div>
+      <div class="box menu" id="menu"></div>
+      <div class="box card" id="card"></div>
+    </div>
+  </div>
+
+  <section class="notes" aria-label="How to play">
+    <div>
+      <h2>YOUR TURN</h2>
+      <ul>
+        <li>Click a <b>red</b> player holding a ball, then a blue player, then <b>THROW!</b></li>
+        <li>Or click a teammate to <b>hand off</b> the ball to a better arm.</li>
+        <li><b>END TURN</b>, then choose whether to <b>move players</b> into open spots. <b>CONFIRM</b> hands it to Blue.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>THE DICE</h2>
+      <ul>
+        <li>Every throw is <b>d20 + modifier</b> against the defender's <b>d20 + modifier</b>. Ties go to the defender.</li>
+        <li>Rows matter: <b>Front</b> throws +1 but defends &minus;1. <b>Back</b> throws &minus;1 but defends +1.</li>
+        <li>Hover a target to see your exact odds before you throw.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>DEFENDING</h2>
+      <ul>
+        <li>A red ring means the CPU is throwing at that player. Pick <b>Dodge</b>, <b>Catch</b>, or <b>Block</b> (with a ball).</li>
+        <li>Catch it and the thrower is out, and your first player out comes back in.</li>
+        <li>Knock out all six to win.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  // ---------- Rules (RULES.md) ----------
+  const d20 = () => 1 + Math.floor(Math.random() * 20);
+  const d6 = () => 1 + Math.floor(Math.random() * 6);
+  const roll4d6 = () => { const r = [d6(), d6(), d6(), d6()]; return r.reduce((a, b) => a + b) - Math.min(...r); };
+  const mod = (s) => Math.floor((s - 10) / 2);
+  const fm = (m) => (m >= 0 ? "+" + m : "" + m);
+  // Dodge and Catch are always open; Block needs a ball to block with (Steve).
+  const legal = (balls) => (balls >= 1 ? ["dodge", "catch", "block"] : ["dodge", "catch"]);
+  const pick = (xs) => xs[Math.floor(Math.random() * xs.length)];
+  // Exact chance that d20 + am beats d20 + dm (ties go to the defender).
+  const hitChance = (am, dm) => {
+    let n = 0;
+    for (let a = 1; a <= 20; a++) for (let b = 1; b <= 20; b++) if (a + am > b + dm) n++;
+    return n / 400;
+  };
+  const pct = (x) => Math.round(x * 100) + "%";
+  // Rows (Steve 2026-10-26): Front / Center / Back on each side. Throwing from the
+  // front is harder to stop; standing in the back gives more time to react.
+  const ROWS = {
+    front: { label: "FRONT", thr: 1, def: -1 },
+    center: { label: "CENTER", thr: 0, def: 0 },
+    back: { label: "BACK", thr: -1, def: 1 },
+  };
+  const ROW_ORDER = ["front", "center", "back"];
+  const throwMod = (a) => mod(a.st.throw) + ROWS[a.slot.row].thr;
+  const defMod = (t, d) => mod(t.st[d]) + ROWS[t.slot.row].def;
+  // Net row effect on a throw: + favors the thrower (green line), - favors the defender (red).
+  const rangeOf = (a, b) => {
+    const net = ROWS[a.slot.row].thr - ROWS[b.slot.row].def;
+    return { net, color: net > 0 ? "#58d854" : net < 0 ? "#ff5030" : "#fcfcfc" };
+  };
+  const rangeText = (a, b) => `${ROWS[a.slot.row].label} ${fm(ROWS[a.slot.row].thr)} vs ${ROWS[b.slot.row].label} ${fm(ROWS[b.slot.row].def)}`;
+  // A target's best legal defense (what a smart defender will use).
+  const bestDef = (t) => Math.max(...legal(t.balls).map((d) => defMod(t, d)));
+
+  // ---------- Sound: NES-style effects synthesized with Web Audio ----------
+  const SFX = (() => {
+    let ctx = null, master = null, muted = false;
+    try { muted = localStorage.getItem("dodgebattle.muted") === "1"; } catch {}
+    function ready() {
+      if (muted) return false;
+      if (!ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return false;
+        ctx = new AC(); master = ctx.createGain(); master.gain.value = 0.32; master.connect(ctx.destination);
+      }
+      if (ctx.state === "suspended") ctx.resume();
+      return true;
+    }
+    // One oscillator note with an optional pitch slide and vibrato.
+    function tone(f, dur, { type = "square", vol = 0.5, to = null, at = 0, vib = 0, vibRate = 0 } = {}) {
+      if (!ready()) return;
+      const t0 = ctx.currentTime + at;
+      const o = ctx.createOscillator(), gn = ctx.createGain();
+      o.type = type; o.frequency.setValueAtTime(f, t0);
+      if (to) o.frequency.exponentialRampToValueAtTime(to, t0 + dur);
+      if (vib) { const l = ctx.createOscillator(), lg = ctx.createGain(); l.frequency.value = vibRate; lg.gain.value = vib; l.connect(lg).connect(o.frequency); l.start(t0); l.stop(t0 + dur); }
+      gn.gain.setValueAtTime(0.0001, t0);
+      gn.gain.exponentialRampToValueAtTime(vol, t0 + 0.008);
+      gn.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(gn).connect(master); o.start(t0); o.stop(t0 + dur + 0.02);
+    }
+    // Filtered noise burst (thumps, swishes, the whistle's breath).
+    function noise(dur, { vol = 0.5, freq = 1200, q = 1, at = 0, type = "bandpass" } = {}) {
+      if (!ready()) return;
+      const t0 = ctx.currentTime + at;
+      const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), gn = ctx.createGain();
+      src.buffer = buf; f.type = type; f.frequency.value = freq; f.Q.value = q;
+      gn.gain.setValueAtTime(vol, t0); gn.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      src.connect(f).connect(gn).connect(master); src.start(t0);
+    }
+    return {
+      unlock: () => ready(),
+      get muted() { return muted; },
+      setMuted(m) { muted = m; try { localStorage.setItem("dodgebattle.muted", m ? "1" : "0"); } catch {} if (m && ctx) ctx.suspend(); },
+      select: () => { tone(660, 0.06, { vol: 0.35 }); tone(990, 0.08, { vol: 0.35, at: 0.06 }); },
+      target: () => { tone(440, 0.07, { vol: 0.35 }); tone(330, 0.12, { vol: 0.35, at: 0.07 }); },
+      menu: () => tone(880, 0.04, { vol: 0.25 }),
+      tick: () => tone(1500 + Math.random() * 400, 0.025, { vol: 0.15, type: "triangle" }),
+      whoosh: () => noise(0.32, { vol: 0.45, freq: 900, q: 0.8, type: "bandpass" }),
+      hit: () => { noise(0.18, { vol: 0.9, freq: 260, q: 0.7, type: "lowpass" }); tone(150, 0.16, { type: "triangle", vol: 0.8, to: 55 }); },
+      catch: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.11, { vol: 0.35, at: i * 0.07 })),
+      dodge: () => noise(0.22, { vol: 0.35, freq: 2400, q: 1.5 }),
+      block: () => { noise(0.09, { vol: 0.7, freq: 700, q: 1 }); tone(240, 0.1, { type: "triangle", vol: 0.6, to: 160 }); },
+      // Referee whistle: short "tweet", then a long trilled "tweeeet", with a little breath noise.
+      whistle: (at = 0) => {
+        tone(2900, 0.13, { type: "sine", vol: 0.55, at, vib: 120, vibRate: 32 });
+        noise(0.13, { vol: 0.08, freq: 3000, q: 2, at });
+        tone(2900, 0.55, { type: "sine", vol: 0.6, at: at + 0.19, vib: 160, vibRate: 34 });
+        noise(0.55, { vol: 0.09, freq: 3000, q: 2, at: at + 0.19 });
+      },
+      revive: (at = 0) => [392, 523, 659].forEach((f, i) => tone(f, 0.12, { vol: 0.3, at: at + i * 0.09, type: "triangle" })),
+      incoming: () => { tone(880, 0.09, { vol: 0.35 }); tone(880, 0.09, { vol: 0.35, at: 0.16 }); },
+      turn: (mine) => (mine ? [523, 659, 784] : [392, 330, 262]).forEach((f, i) => tone(f, 0.1, { vol: 0.28, at: i * 0.08 })),
+      win: () => [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, 0.16, { vol: 0.35, at: i * 0.13 })),
+      lose: () => [392, 349, 330, 262].forEach((f, i) => tone(f, 0.22, { vol: 0.3, at: i * 0.18, type: "triangle" })),
+    };
+  })();
+  // Browsers only allow sound after the first click or key press.
+  window.addEventListener("pointerdown", () => SFX.unlock(), { once: true });
+  window.addEventListener("keydown", () => SFX.unlock(), { once: true });
+
+  // ---------- Sprites: Steve's original art, recolored per player ----------
+  const ART = {"male_idle": "data:image/png;base64,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", "male_ball": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAoCAYAAADt5povAAAAAXNSR0IArs4c6QAABX9JREFUWIWdWM9rG0cU/tZkhLxCK62tSopsJBvZITiFBDXQQKG44AQSX1yIGshF+GKSBuKL6J/QQ8nFhabgBIIuhiJoRKltcHIwgZKEJjo0OATLpl43cm3ZjX6xW6E5bA/LTGYl7SbNB8bjmdn3zXvzfo0lvCeSw36TUgpCCCilaFMPfLIJ3ZAwGJLRMnRQSrF70JKiA4q5/6Yh9ZLTc1LEqRNRs1mvwR8I4pxPd927fghQSuEPBNEydGy/bnbJdyVkWp2PkXedqyd5L8JjTh9EBxST0nYX2fqh9XvyI2eyB3vUcc1Rw3jEawIAIcRGwAjZfXYSP9iz7vd/3yG7O0aoGxJ8soknua+hyAQNg+KTqwtoUw88pA1CCHRDgrZ8ExPphZ7mBFxMKoJSCg8BnuTmocjWARSZ4PnSPB83DMrXKHU2aZ/TAtOOhYCIVOYuxmduQZEJJxPX3OBIyMgYzscI1+D+lQAAYCK9gIn0AidOZe6iWa99GCEAlApZlApZeEjbNj967Q62i2uglGJ1Nsbnm/Uatotr8AeCjjLfeYfaSp6PmemYOEIIEpfSfI2ZvmU4JwhXL71/JYBKsYpwSuWCRXJm4k64eamjSTc296Uvf6ojnFI5gYhOZ9FW8twabl76zlwaj3jNNvXg0Y3jSFxKu2rGkMrcxcbm/oclb0b6cC4BAFAnZzjh+Mwt277nS/M4l7ntaE5XQrEcMeiGxDVlEDV208yRMDnsNwHgZd7KIonp7/HoxnEAwNSixuPTHwhi/ceMLc0RQuCVfa6ktoV4xGuWClnbhon0AgAgd7of4ZSKi/f2bGNmhdzpflx91kCpkH0/L+1FxjSllHJvXZ2N4fLjFh+zuw2nVB7wuuFsVQmwat+L/HUA4PehreS5CXVDgoe0uXDAMi8Dm59a1PBwLgF1cgaT13M9TXvM0uwmv/yGQTF5PYdmvYalswrXrFKscoEiiQjmYIpMHLNNn5j32OUzMkbEsHRWwec//O1oLgZtJQ9KKaIDihmPePkPAPQ16zWeIRSZoFTIdpUjEZ2JXIRuSKgUq0hcSqNUyMInm3g4l0CpkMXzpXmcOhE1udOIqUpbvomrzxo9hbodxk1jwKomfbsHLenivT1oK3kbaamQ5aSiWQdDMv+7Uqzaxj7ZRDil8ry6OhvD1KLGEwUhpDt5i14qanNv719+SgbRocIpFZRSTC1qtnsmhHBlACHwk8N+c3U2Zqtv5zK3kTvdzz8WzSxmnH+ODPhkE8DbXlTs+lhy2H7dlGxxwtIaC9zphCVkNtaPy49b8JA2hkbG+P5G9QiKGuLjZr3m2iLaNOxEdEAx2al1Q8LoeNy2zggA4OMzZwEA1VoN5Z0trk0vuY4F2EPa8Mo+G1mjegQAUIPW24EQAn8gCO3PLVRrFjlL4E5wbaJahg6fbKK8s4VKWYOihtCoHqH4+x8ArMrerNf4fHlnCy/z866dm2sTJToRYJWqwZCMwZCMjc19iTlGpazhZX6eh5Tl3a33J+z0WAYPaWNj861D7B60JNZsifDJJvCmtxJdJo1HvKZYXhoGhbaSx0R6AbsHLUcnY7EmtpW90CUgOqCYo+NxVMoaf90CcHxgskfP0MgYyjtbfN7pcDYNk8N+kxG8erqMv178CkUNWR21g5u3DB1DI2NQg0FsF9ewXVxDm3p44LtqGI94zaGRMfzy7TQy3/3G48rpxPGI12TlTVFDUINBVGs1PPr5Ns588RUAdBXhLkL2BAuenObzJz+1xp1aJof9ZngowYkAK0Zz33zGv0+mLtgO2+Wl1fUCRq/dsc29erqMZOpCl3kAIHeBAjiEOjmD6noBwKHtsJ0h0qUh62HYv0RYwe2Vrth+AHyvmKxZyy9q+B+Mxezz9jGujQAAAABJRU5ErkJggg==", "female_idle": "data:image/png;base64,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", "female_ball": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABsAAAApCAYAAADEZlLzAAAAAXNSR0IArs4c6QAABRxJREFUWIWdmN9rU2cYxz/vOXFJPKHgTUhCbxpGoVjRbdZJyYpVdiP21l2I+xMyerEVBa+E1eqF2P9gOhl4m04ZMjNqKZ21oJhSUGkYDBOyC2EYYzTnfXdx+r49J+ecVPZASPOe93m+z4/v87zvqeAjpTA8pACklEilsIQAQCoFgCUEzVdvxCAbiSijUkosy+LV3/8KgFwho74fa+/p0LxyVMK2jV6/BBYLw0MBowubaaRSXBh/B8B4WlHrDHTe6EVFacUBzddSAAGgfoPXtpzQOsDcwQ7ZvBN6YMCklAFDCdtm7mAnAKSjmq+leHnjBD3XDTgGMDPyCQAJ2w45sQumgo5oQ/1A17ackJEL4+8MYKX+nvG0MvqRYH4//HWqdUSgTlJKthenA0YWNtNsL04HIowSA6bE3oW/upO+bqdNsVzFEoLzj/fz8sYJALYXp03kVoS9EPW1PGntpvVIVnC1luLF4rQBSdg2z378wuwplqumTufW00CYOAbMXzOtdK/lEeVIts2LxWlGZ5cDKSyWq+b31sIxAMbmHtFqtCPTZNLoZ0/PdbnXShtDV2spiuVqoOgaqFiuUixXGZt7RDLtpTCK9gGwfvb4I7g50TG/ux2vF7VrlhAmqijHI8Hi5Pn1qZ0aeJJMO3Q7XloDhnyEiKI9+MZVrpBRuomftBS//bPLMr9oIughsHllwqSvWK4CxNZMgJdj3VeahfdaaeOxBtUp1Mb7fwOMzi7HDmIrV8jEArUabSGV4tPv/jBG/UDJtMOhixvmOcSn0ERWGB5SPdcNnFH+VOTzjlJCIJUKTQ9/hINob8DiJFfIKN1/qzOS0pKNVIrVGRnaO1mxDJBfz3+oxk6QXCGj/AQplquszriUlmxyX58yaex22ozNPQro3Tr6NmDr3LqjWo22iKR+Pu+oKCb6gf2k0JFm8466dfQtI7lk4HN7wjvfIiMTMU0JsHLGZeruPkZnl9F1XjnjPbs90WEklwzsrze7jOSSJGw7+g7y/PqUSRNA8/7v2L7+/+nzNwGjkxWLhG3z7Xqam32AI7kk9WYXKe3wBFGuG6iHNvbQRwptrN7sAt54Wj79AU16ve7/WyoVjkwrdDttXq+sMXV3X8B73UerM9KA6jUb77AdT6sAoD58Q2D+GXegdJxnJa9/ErbN8+tT5tno7DLLpz/sOOOBPZyRfFVJ8cPOkNAyX0vRarRFCEwoxeuVNQ6Ujps1/xT317Le7NJzvf4qLWXU5pUJHrLGZCUVyILuvxBYo9EWkxVHrbLmW91ngPS3lJJz62njSPPVG3Ho4obqubs06J8msRNETwG/hzrKnuua3pqsWJGGoyR2QzbvKK+HXC7/6RX70pfJuO2BcRUnAw/PlTOuYdWR7K6derNLpf4+AKQd/N9gAD//5X3rmy5gTu56s8tkxcISgu3FabYWjpm3nSiJHcTa44Sdoee6XGK3qTUpzj/eDyg2r0zs5fNgMEsIY+TQxQ1KS8K8l0nlcm3LQSo3cNnxD+coiSxo//GiRR8n/eeW/+Y16AANLWoWAqELT7FcDRnKFTIKwLK88vdc9+PAsnnvzVEr+UdU3EUmm3eU/+Qe1AJmsTA8pDbu/8Lhk2cBb9Dq4QvE3pii6L7n9VvfA58+uANAack298M4oH55+uAOTx/c2bPfjJeNrV/N52OUtE6ukFHZvKMKw0OxupE10NEBHD55duAY6t+v5bNT34Re4mOpD5i+GvT/jdg3lgi9/wAn7ctOD0vS9gAAAABJRU5ErkJggg==", "referee": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAfCAYAAADnTu3OAAAAAXNSR0IArs4c6QAAAmhJREFUSInVlT9oFEEUxn+7e4tFEkImtyfhIKQOpEhODEJICgmYSsRCjJViJ4joEQWxP4MJRrC1VFIIWqU4UvgHg2CSQrAOwpE/6ooYCzl3x+Ju1tmd3c1FK79q5+37vn2z75s3FhkQwpG2Y0frMAgptNe/ghDfD6w0Xmqw5Lmy8fR81rcAKJ99wt6npsE3AkI4cvfZhVyxxps9AMbm60alhTxSuTLTWhxZjwnlIVUwJgbwswJAuaLlrK90LggwMFsFWs3YXV4E4Oi569H7jbnpA6tFCEdu1U5JIRzZrC/JZn1JCuHIoufKoucacZXbUYU6th/fMyrMQqrg7vJiJlnFs7Zs2KbkubLRrigPjfUVji+sGl7MNrYmevfBQwBuXr0Sxcqz1c6MrSCEIzfmpuP2aVeWZuhUwaLnRh0LgxAw/9WxhVXCIESd8zBxrmOCQjjy44fXAIyemOHLt+8AJIdEf28Pm2stYw8OT8QEY13WiQD9vT0APLp/C4BL12ppu4zBVltVBh0cnjCSRsenGB2fMuJDI5PYjh3jF4Rw5LbW0U7Mq6AfyzZX2jn5f4X/QND3A6vcHlX/gvJsFd8PrAJAyJ/5l7TOQRhIFFMQwpHvbpyMAmPz9UMJJrjSGF+2YzM0Mtl6pnVl6uuwnadiSVhFz5X62dSJuoD+rENx1dk3JkbRc2Vfd1cs9nX/BwBp8c+JERbrQJqYqiINfd1dsQllCGYR85DJKXmu3N9Zk/s7a/LV81p00+kV6LefnlvSciyVuPX+ZewDm29fAHDm8p3oP+nzMpl7+uJtfD+wIsG8bSnBZF7a5P4N1Ukje0MDixsAAAAASUVORK5CYII="};
+  const TEAM = { red: { base: [216, 40, 0], shade: [150, 24, 0] }, blue: { base: [36, 92, 232], shade: [20, 56, 160] } };
+  // Skin tones (base, shade); null = the art's own colors.
+  const SKINS = { light: null, tan: [[232, 170, 112], [198, 134, 82]], brown: [[168, 108, 64], [128, 78, 44]], dark: [[112, 70, 42], [80, 48, 28]] };
+  const HAIRS = { brown: null, black: [[44, 34, 28], [22, 16, 12]], blond: [[244, 196, 84], [200, 146, 40]], red: [[196, 78, 36], [140, 46, 20]], darkbrown: [[92, 52, 22], [62, 32, 10]] };
+  // Each player is one natural pairing (no random mixing of skin and hair).
+  const LOOKS = [
+    { skin: "light", hair: "brown" }, { skin: "dark", hair: "black" }, { skin: "light", hair: "blond" },
+    { skin: "brown", hair: "black" }, { skin: "tan", hair: "darkbrown" }, { skin: "light", hair: "red" },
+    { skin: "tan", hair: "black" }, { skin: "dark", hair: "black" },
+  ];
+  const imgs = {};
+  const loadAll = Promise.all(Object.entries(ART).map(([k, src]) => new Promise((res) => {
+    const im = new Image(); im.onload = () => { imgs[k] = im; res(); }; im.src = src;
+  })));
+
+  function hsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    let h = 0;
+    if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return { h: (h * 60 + 360) % 360, s: mx ? d / mx : 0, v: mx };
+  }
+  // Orange tank = jersey, peach = skin, dark brown = hair (from the art's palette).
+  function classify(r, g, b) {
+    const { h, s, v } = hsv(r, g, b);
+    if (h >= 22 && h <= 33 && s >= 0.8 && v >= 0.7) return "jersey";
+    if (h >= 20 && h <= 35 && s >= 0.7 && v >= 0.3 && v < 0.63) return "hair";
+    if (h >= 30 && h <= 41 && s >= 0.4 && s < 0.8 && v >= 0.85) return "skin";
+    return null;
+  }
+
+  // Recolored canvas for one player and pose. Within each class the brightest
+  // original tone maps to the ramp's base and the rest to its shade.
+  function recolor(key, p, dim) {
+    const im = imgs[key];
+    const cv = document.createElement("canvas"); cv.width = im.width; cv.height = im.height;
+    const x = cv.getContext("2d");
+    if (p.side === "blue") { x.translate(im.width, 0); x.scale(-1, 1); }
+    x.drawImage(im, 0, 0);
+    const d = x.getImageData(0, 0, im.width, im.height);
+    const px = d.data;
+    const brightest = {};
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i + 3] < 128) continue;
+      const c = classify(px[i], px[i + 1], px[i + 2]);
+      if (c) brightest[c] = Math.max(brightest[c] ?? 0, hsv(px[i], px[i + 1], px[i + 2]).v);
+    }
+    const look = LOOKS[p.look];
+    const ramps = { jersey: [TEAM[p.side].base, TEAM[p.side].shade], skin: SKINS[look.skin], hair: HAIRS[look.hair] };
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i + 3] < 128) continue;
+      const c = classify(px[i], px[i + 1], px[i + 2]);
+      const ramp = c && ramps[c];
+      if (ramp) {
+        const v = hsv(px[i], px[i + 1], px[i + 2]).v;
+        const [r, g, b] = v >= brightest[c] - 0.02 ? ramp[0] : ramp[1];
+        px[i] = r; px[i + 1] = g; px[i + 2] = b;
+      }
+      if (dim) { px[i] *= 0.45; px[i + 1] *= 0.45; px[i + 2] *= 0.5; }
+    }
+    x.putImageData(d, 0, 0);
+    return cv;
+  }
+
+  // ---------- Teams ----------
+  const NAMES = ["MEGAN", "DYLAN", "KATIE", "TYLER", "ROSA", "CHRIS", "DANI", "OWEN", "PRIYA", "MARCO", "TESS", "ANDRE"];
+  // Spots: x by row (front is nearest the center line), y by spot index.
+  const ROW_X = { front: 152, center: 110, back: 66 };
+  const SPOT_Y = [132, 186, 240];
+  const spotPos = (sideName, row, i) => ({ x: sideName === "red" ? ROW_X[row] : 384 - ROW_X[row], y: SPOT_Y[i] });
+  // Starting spots: two per row, staggered (one spot per row starts open).
+  const START = [["front", 0], ["front", 2], ["center", 1], ["center", 2], ["back", 0], ["back", 1]];
+  const FEMALE = new Set(["MEGAN", "KATIE", "ROSA", "DANI", "PRIYA", "TESS"]);
+  const players = [];
+  NAMES.forEach((name, i) => {
+    const side = i < 6 ? "red" : "blue";
+    const k = i % 6;
+    const [row, si] = START[k];
+    const p = {
+      id: i, name, side, out: false, balls: 0,
+      slot: { row, i: si }, home: spotPos(side, row, si),
+      female: FEMALE.has(name), look: (i * 5 + Math.floor(i / 6)) % LOOKS.length,
+      st: { throw: roll4d6(), catch: roll4d6(), dodge: roll4d6(), block: roll4d6() },
+    };
+    p.x = p.home.x; p.y = p.home.y;
+    players.push(p);
+  });
+  const team = (side) => players.filter((p) => p.side === side);
+  const active = (side) => team(side).filter((p) => !p.out);
+  const holders = (side) => active(side).filter((p) => p.balls > 0);
+  const takenBy = (sideName, row, i) => active(sideName).find((q) => q.slot.row === row && q.slot.i === i) || null;
+  const openSpots = (sideName) => ROW_ORDER.flatMap((row) => [0, 1, 2].filter((i) => !takenBy(sideName, row, i)).map((i) => ({ row, i, ...spotPos(sideName, row, i) })));
+  function moveTo(p, row, i) { p.slot = { row, i }; p.home = spotPos(p.side, row, i); if (!p.out) { p.x = p.home.x; p.y = p.home.y; } }
+  const queue = { red: [], blue: [] };
+  // Sample start: Red won the Opening Rush 3-2.
+  [0, 2, 4].forEach((i) => (players[i].balls = 1));
+  [6, 9].forEach((i) => (players[i].balls = 1));
+
+  // ---------- State ----------
+  let side = "red", turn = 1, thrownThisTurn = 0;
+  let phase = "pick_thrower"; // pick_thrower | pick_target | confirm | busy | defend | over
+  let handoff = false; // pick_target sub-mode: the next teammate clicked receives the ball
+  // End of turn: move_prompt (YES/NO) -> move (each player once) -> CONFIRM.
+  let moved = new Set(), moveSel = null, moveStart = null;
+  let sel = null, tgt = null, incoming = null, hover = null, flight = null, lunge = null;
+  let message = `<p><span class="big">RED WON THE OPENING RUSH, 3 BALLS TO 2.</span></p><p>Your turn. Pick a player holding a ball.</p>`;
+
+  // ---------- Drawing ----------
+  const cv = document.getElementById("c");
+  const g = cv.getContext("2d");
+  const crowd = [];
+  for (let y = 2; y < 40; y += 8) for (let x = (y / 8) % 2 ? 4 : 0; x < 384; x += 10) crowd.push({ x, y, c: pick(["#d82800", "#0058f8", "#f8b800", "#58d854", "#fcfcfc", "#a4e4fc", "#f878f8", "#fca044"]), s: pick(["#fcd8a8", "#e8aa70", "#a86c40", "#70462a"]), t: Math.random() * 6 });
+
+  // Referee with his right arm straight up, made from his own pixels and colors:
+  // the down arm is cleared and a sleeve + arm + fist is drawn above the shoulder.
+  let refUp = null;
+  const REF_PAD = 0; // the raised fist stays within the sprite's own height
+  // Referee signaling: his right arm, built like his real arms (5px wide, his
+  // darker hand color), raised straight up from his own shoulder.
+  function raisedRef() {
+    const im = imgs.referee;
+    const cv = document.createElement("canvas"); cv.width = im.width + 1; cv.height = im.height;
+    const x = cv.getContext("2d");
+    x.drawImage(im, 0, 0);
+    x.clearRect(16, 15, 4, 9);   // the arm that hung down
+    x.clearRect(17, 24, 3, 1);   // the end of the belt line under the old hand
+    const C = { a: "#121203", f: "#fbbb91", e: "#e08848" };
+    const ARM = [".aaa.", "aeeea", "aeeea", "afffa", "afffa", "afffa", "afffa", "afffa", "afffa", "afffa", "afffa", "afffa", "afffa", ".aaa."];
+    ARM.forEach((row, r) => [...row].forEach((ch, c) => {
+      if (ch === ".") return;
+      x.fillStyle = C[ch]; x.fillRect(16 + c, 1 + r, 1, 1);
+    }));
+    return cv;
+  }
+
+  // 5-wide pixel glyphs. Capitals are 7 rows; lowercase sits on the same
+  // baseline (row 6) and g drops 2 rows below it.
+  const GLYPHS = {
+    B: ["1111.", "1...1", "1...1", "1111.", "1...1", "1...1", "1111."],
+    A: [".111.", "1...1", "1...1", "11111", "1...1", "1...1", "1...1"],
+    L: ["1....", "1....", "1....", "1....", "1....", "1....", "11111"],
+    I: ["11111", "..1..", "..1..", "..1..", "..1..", "..1..", "11111"],
+    S: [".1111", "1....", "1....", ".111.", "....1", "....1", "1111."],
+    T: ["11111", "..1..", "..1..", "..1..", "..1..", "..1..", "..1.."],
+    E: ["11111", "1....", "1....", "1111.", "1....", "1....", "11111"],
+    D: ["1111.", "1...1", "1...1", "1...1", "1...1", "1...1", "1111."],
+    o: [".....", ".....", ".111.", "1...1", "1...1", "1...1", ".111."],
+    d: ["....1", "....1", ".1111", "1...1", "1...1", "1...1", ".1111"],
+    g: [".....", ".....", ".1111", "1...1", "1...1", "1...1", ".1111", "....1", ".111."],
+    e: [".....", ".....", ".111.", "1...1", "11111", "1....", ".1111"],
+    b: ["1....", "1....", "1111.", "1...1", "1...1", "1...1", "1111."],
+    a: [".....", ".....", ".111.", "....1", ".1111", "1...1", ".1111"],
+    l: [".11..", "..1..", "..1..", "..1..", "..1..", "..1..", ".111."],
+    r: [".....", ".....", "1.11.", "11..1", "1....", "1....", "1...."],
+    " ": [".."],
+  };
+  const glyphW = (ch) => (GLYPHS[ch] ? GLYPHS[ch][0].length : 5);
+  const textWidth = (text, scale) => [...text].reduce((w, ch) => w + (glyphW(ch) + 1) * scale, -scale);
+  function pixelText(text, x, y, scale, color) {
+    g.fillStyle = color;
+    for (const ch of text) {
+      (GLYPHS[ch] || []).forEach((row, ry) => [...row].forEach((b, rx) => {
+        if (b === "1") g.fillRect(x + rx * scale, y + ry * scale, scale, scale);
+      }));
+      x += (glyphW(ch) + 1) * scale;
+    }
+  }
+
+  function drawCourt(t) {
+    // crowd (heads bob) on black
+    g.fillStyle = "#000"; g.fillRect(0, 0, 384, 62);
+    crowd.forEach((c) => {
+      const b = Math.sin(t / 300 + c.t) > 0.85 ? -1 : 0;
+      g.fillStyle = c.c; g.fillRect(c.x, c.y + 4 + b, 7, 4);
+      g.fillStyle = c.s; g.fillRect(c.x + 1, c.y + b, 5, 4);
+    });
+    // wall rail + the BALLISTAE "Dodgeball gear" sign, drawn with pixel letters so it stays sharp
+    g.fillStyle = "#3c1800"; g.fillRect(0, 44, 384, 18);
+    g.fillStyle = "#6c4400"; g.fillRect(0, 44, 384, 2);
+    const big = textWidth("BALLISTAE", 2), small = textWidth("Dodgeball gear", 1);
+    const w = Math.max(big + 1, small) + 14, sx = Math.round(192 - w / 2);
+    g.fillStyle = "#18120e"; g.fillRect(sx - 2, 22, w + 4, 38);
+    g.fillStyle = "#f8e8c8"; g.fillRect(sx, 24, w, 34);
+    g.fillStyle = "#e8d4a8"; g.fillRect(sx, 56, w, 2);
+    // drawn twice, 1px apart, for the chunky lettering of the original sign
+    pixelText("BALLISTAE", Math.round(192 - big / 2), 28, 2, "#18120e");
+    pixelText("BALLISTAE", Math.round(192 - big / 2) + 1, 28, 2, "#18120e");
+    pixelText("Dodgeball gear", Math.round(192 - small / 2), 45, 1, "#a01818");
+    // floor
+    g.fillStyle = "#e0b880"; g.fillRect(0, 62, 384, 202);
+    g.fillStyle = "#d4a86c";
+    for (let y = 62; y < 264; y += 8) { g.fillRect(0, y, 384, 1); for (let x = (y * 11) % 56; x < 384; x += 56) g.fillRect(x, y, 1, 8); }
+    // side tint, court lines, center line
+    // whose turn: the active half glows in its team color, the other half dims
+    const redOn = side === "red" && phase !== "over";
+    const glow = 0.10 + 0.05 * (Math.floor(t / 400) % 2);
+    g.fillStyle = redOn ? `rgba(216,40,0,${glow})` : "rgba(24,18,14,.10)"; g.fillRect(12, 98, 180, 160);
+    g.fillStyle = !redOn && phase !== "over" ? `rgba(36,92,232,${glow})` : "rgba(24,18,14,.10)"; g.fillRect(192, 98, 180, 160);
+    g.fillStyle = "#fcfcfc";
+    g.fillRect(10, 96, 364, 2); g.fillRect(10, 258, 364, 2); g.fillRect(10, 96, 2, 164); g.fillRect(372, 96, 2, 164);
+    g.fillStyle = "#f8b800"; g.fillRect(191, 66, 3, 194);
+    if (phase !== "over") {
+      const on = Math.floor(t / 400) % 2;
+      g.fillStyle = redOn ? (on ? "#ff4020" : "#d82800") : (on ? "#4c8cfc" : "#0058f8");
+      const bx = redOn ? 12 : 194, bw = 178;
+      g.fillRect(bx, 98, bw, 2); g.fillRect(bx, 256, bw, 2); g.fillRect(bx, 98, 2, 160); g.fillRect(bx + bw - 2, 98, 2, 160);
+    }
+    // refs on the center line; the one on the team-to-act's side raises his outside arm
+    const rw = imgs.referee.width;
+    const upRed = refUp && phase !== "over" && side === "red", upBlue = refUp && phase !== "over" && side === "blue";
+    const bob = 0;
+    if (upRed) { g.save(); g.translate(166 + rw, 64 - REF_PAD - bob); g.scale(-1, 1); g.drawImage(refUp, 0, 0); g.restore(); }
+    else g.drawImage(imgs.referee, 166, 64);
+    if (upBlue) g.drawImage(refUp, 218, 64 - REF_PAD - bob);
+    else { g.save(); g.translate(218 + rw, 64); g.scale(-1, 1); g.drawImage(imgs.referee, 0, 0); g.restore(); }
+  }
+
+  function arrow(x, y, color, t) {
+    const b = Math.floor(t / 250) % 2;
+    g.fillStyle = "#000"; g.fillRect(x - 4, y - 1 + b, 9, 4);
+    g.fillStyle = color; g.fillRect(x - 3, y + b, 7, 1); g.fillRect(x - 2, y + 1 + b, 5, 1); g.fillRect(x - 1, y + 2 + b, 3, 1); g.fillRect(x, y + 3 + b, 1, 1);
+  }
+  function brackets(x, y, w, h, color) {
+    g.fillStyle = color;
+    const L = 4;
+    [[x, y], [x + w - L, y], [x, y + h - 1], [x + w - L, y + h - 1]].forEach(([a, b]) => g.fillRect(a, b, L, 1));
+    [[x, y], [x + w - 1, y], [x, y + h - L], [x + w - 1, y + h - L]].forEach(([a, b]) => g.fillRect(a, b, 1, L));
+  }
+  function crosshair(cx, cy, t) {
+    const on = Math.floor(t / 180) % 2;
+    const r = 22 + on;
+    g.fillStyle = on ? "#fcfcfc" : "#d82800";
+    g.fillRect(cx - r, cy, 6, 1); g.fillRect(cx + r - 5, cy, 6, 1); g.fillRect(cx, cy - r, 1, 6); g.fillRect(cx, cy + r - 5, 1, 6);
+    brackets(cx - 17, cy - 23, 35, 47, "#d82800");
+  }
+  function ball(x, y) {
+    g.fillStyle = "#18120e"; g.fillRect(x - 4, y - 3, 8, 6); g.fillRect(x - 3, y - 4, 6, 8);
+    g.fillStyle = "#e0601c"; g.fillRect(x - 3, y - 3, 6, 6);
+    g.fillStyle = "#f89848"; g.fillRect(x - 2, y - 3, 2, 2);
+  }
+
+  const sprites = new Map();
+  function sprite(p) {
+    const pose = (p.female ? "female_" : "male_") + (!p.out && p.balls > 0 ? "ball" : "idle");
+    const key = p.id + pose + (p.out ? "o" : "");
+    if (!sprites.has(key)) sprites.set(key, recolor(pose, p, p.out));
+    return sprites.get(key);
+  }
+
+  // Dashed ring on the floor around a player's feet (pixel-drawn ellipse that spins and pulses).
+  function floorRing(cx, cy, color, t) {
+    const rx = 19 + (Math.floor(t / 200) % 2), ry = 7;
+    const spin = t / 260;
+    for (let i = 0; i < 96; i++) {
+      const a = (i / 96) * Math.PI * 2;
+      const on = Math.floor(((a + spin) / (Math.PI * 2)) * 12) % 2 === 0; // 6 dashes
+      const x = Math.round(cx + Math.cos(a) * rx), y = Math.round(cy + Math.sin(a) * ry);
+      g.fillStyle = on ? color : "rgba(24,18,14,.35)";
+      g.fillRect(x - 1, y, 2, on ? 2 : 1);
+    }
+  }
+  // Dotted line from thrower to target, colored by range (green close, white mid, red long).
+  function rangeLine(a, b, t) {
+    const r = rangeOf(a, b);
+    const x0 = a.x, y0 = a.y - 22, x1 = b.x, y1 = b.y - 22;
+    const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 3), off = Math.floor(t / 90) % 3;
+    for (let i = 0; i <= n; i++) {
+      if ((i + off) % 3) continue;
+      const k = i / n, x = Math.round(x0 + (x1 - x0) * k), y = Math.round(y0 + (y1 - y0) * k);
+      g.fillStyle = "#18120e"; g.fillRect(x - 1, y - 1, 3, 3);
+      g.fillStyle = r.color; g.fillRect(x, y, 1, 1);
+    }
+  }
+  // Red "!" bubble over a targeted player's head.
+  function alertMark(x, y, t) {
+    const b = Math.floor(t / 250) % 2;
+    g.fillStyle = "#18120e"; g.fillRect(x - 4, y - 1 + b, 9, 12);
+    g.fillStyle = "#d82800"; g.fillRect(x - 3, y + b, 7, 10);
+    g.fillStyle = "#fcfcfc"; g.fillRect(x - 1, y + 2 + b, 3, 4); g.fillRect(x - 1, y + 7 + b, 3, 2);
+  }
+
+  function frame(t) {
+    drawCourt(t);
+    if (incoming) floorRing(incoming.tgt.x, incoming.tgt.y, "#e82800", t);
+    const order = [...players].sort((a, b) => a.y - b.y);
+    for (const p of order) {
+      let x = p.x, y = p.y;
+      if (lunge && lunge.p === p) x += (p.side === "red" ? 1 : -1) * lunge.dx;
+      if (!p.out && p === sel) y -= Math.floor(t / 250) % 2;
+      if (!p.out) { g.fillStyle = "rgba(0,0,0,.28)"; g.fillRect(x - 10, y - 1, 20, 3); }
+      const sp = sprite(p);
+      g.drawImage(sp, Math.round(x - sp.width / 2), Math.round(y - sp.height));
+    }
+    // move step: open spots on your side, the player being moved
+    if (phase === "move") {
+      const on = Math.floor(t / 300) % 2;
+      openSpots("red").forEach((sp) => {
+        floorRing(sp.x, sp.y, moveSel ? (on ? "#58d854" : "#3ca83c") : "rgba(252,252,252,.7)", moveSel ? t : 0);
+      });
+      active("red").forEach((p) => { if (moved.has(p)) brackets(p.x - 16, p.y - 44, 33, 47, "rgba(88,216,84,.8)"); });
+      if (moveSel) arrow(moveSel.x, moveSel.y - 50, "#58d854", t);
+    }
+    // cues
+    if (phase === "pick_thrower" && side === "red") holders("red").forEach((p) => p !== hover && brackets(p.x - 16, p.y - 44, 33, 47, "rgba(252,252,252,.45)"));
+    if (phase === "pick_target" && sel) {
+      if (!handoff) active("blue").forEach((p) => p !== hover && brackets(p.x - 16, p.y - 44, 33, 47, "rgba(248,184,0,.6)"));
+      active("red").forEach((p) => p !== sel && p !== hover && brackets(p.x - 16, p.y - 44, 33, 47, handoff ? "#58d854" : "rgba(88,216,84,.45)"));
+    }
+    if (hover && !hover.out && phase !== "busy") brackets(hover.x - 16, hover.y - 44, 33, 47, "#fcfcfc");
+    const aimAt = tgt || (phase === "pick_target" && !handoff && hover && hover.side === "blue" ? hover : null);
+    if (sel && aimAt) rangeLine(sel, aimAt, t);
+    if (incoming) rangeLine(incoming.att, incoming.tgt, t);
+    if (sel) arrow(sel.x, sel.y - 50, "#58d854", t);
+    if (tgt) crosshair(tgt.x, tgt.y - 20, t);
+    if (incoming) { arrow(incoming.att.x, incoming.att.y - 50, "#3c7cfc", t); alertMark(incoming.tgt.x, incoming.tgt.y - 56, t); }
+    if (flight) ball(flight.x, flight.y);
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- HUD ----------
+  const $ = (id) => document.getElementById(id);
+  function labels() {
+    const court = $("court");
+    court.style.setProperty("--u", (court.clientWidth / 384).toFixed(3));
+    const rowTags = phase === "move" ? ROW_ORDER.map((row) => {
+      const x = (spotPos("red", row, 0).x / 384) * 100;
+      return `<div class="nm rowtag" style="left:${x}%;top:${(256 / 264) * 100}%">${ROWS[row].label}</div>`;
+    }).join("") : "";
+    $("labels").innerHTML = rowTags + players.filter((p) => !p.out).map((p) => {
+      const extra = !p.out && p.balls > 1 ? ` <span class="x">x${p.balls}</span>` : "";
+      return `<div class="nm" style="left:${(p.x / 384) * 100}%;top:${((p.y + 2) / 264) * 100}%">${p.name}${extra}</div>`;
+    }).join("") + (phase === "move" ? "" : "");
+  }
+  function scoreboard() {
+    for (const s of ["red", "blue"]) {
+      $(s + "Pips").innerHTML = team(s).map((p) => `<span class="pip ${p.out ? "out" : ""}"></span>`).join("");
+      const n = team(s).reduce((a, p) => a + p.balls, 0);
+      $(s + "Balls").textContent = `BALLS ${n}`;
+    }
+    $("redSide").classList.toggle("on", phase !== "over" && side === "red");
+    $("blueSide").classList.toggle("on", phase !== "over" && side === "blue");
+    $("turnLabel").innerHTML = phase === "over" ? "FINAL"
+      : `<span>TURN ${turn}</span><span class="turnchip ${side}">${side === "red" ? "YOUR TURN" : "CPU TURN"}</span>`;
+  }
+  // The matchup that matters right now, if any: [thrower, defender].
+  function matchup() {
+    if (phase === "defend" && incoming) return [incoming.att, incoming.tgt];
+    if (phase === "confirm" && sel && tgt) return [sel, tgt];
+    if (phase === "pick_target" && sel && hover && hover.side === "blue") return [sel, hover];
+    return null;
+  }
+  function refreshCard() {
+    const m = matchup();
+    if (m) matchCard(m[0], m[1]); else card(hover || sel || tgt || (incoming && incoming.tgt));
+  }
+  function matchCard(att, def) {
+    const legalDef = legal(def.balls);
+    const row = (k, s) => {
+      const aOn = s === "throw", dOn = s !== "throw" && legalDef.includes(s);
+      const cell = (pl, on) => `<span class="${on ? "on" : "off"}">${pl.st[s]}<b>${fm(mod(pl.st[s]))}</b></span>`;
+      return `<span class="k">${k}</span>${cell(att, aOn)}${cell(def, dOn)}`;
+    };
+    $("card").innerHTML =
+      `<div class="vs"><span class="k"></span><span class="${att.side}">${att.name}</span><span class="${def.side}">${def.name}</span>` +
+      row("THR", "throw") +
+      `<span class="k">ROW</span><span class="on">${ROWS[att.slot.row].label.slice(0, 3)}<b>${fm(ROWS[att.slot.row].thr)}</b></span><span class="on">${ROWS[def.slot.row].label.slice(0, 3)}<b>${fm(ROWS[def.slot.row].def)}</b></span>` +
+      row("CAT", "catch") + row("DOD", "dodge") + row("BLK", "block") +
+      `<span class="k">BALL</span><span class="off">${att.balls}</span><span class="off">${def.balls}</span></div>`;
+  }
+  // One line per legal defense: the thrower's chance to hit.
+  function oddsLines(att, def) {
+    const am = throwMod(att);
+    return legal(def.balls).map((d) => `${d.toUpperCase()} ${fm(defMod(def, d))}: <span class="${att.side === "red" ? "big" : "hit"}">${pct(hitChance(am, defMod(def, d)))}</span>`).join(" &middot; ");
+  }
+
+  function card(p) {
+    if (!p) { $("card").innerHTML = `<h3>PLAYER</h3><p style="margin:0;color:var(--dim)">Point at a player to see their stats.</p>`; return; }
+    const rows = [["THR", "throw"], ["CAT", "catch"], ["DOD", "dodge"], ["BLK", "block"]]
+      .map(([k, s]) => `<span class="k">${k}</span><span>${p.st[s]}</span><span class="m">${fm(mod(p.st[s]))}</span>`).join("");
+    $("card").innerHTML = `<h3 class="${p.side}">${p.name}${p.out ? " &middot; OUT" : ""}</h3><div class="stats">${rows}</div><p style="margin:4px 0 0;color:var(--dim)">BALLS ${p.balls}</p>`;
+  }
+  function menu(title, items) {
+    $("menu").innerHTML = `<div class="ttl">${title}</div>` + items.map((it, i) =>
+      `<button type="button" data-i="${i}" ${it.disabled ? "disabled" : ""}><span>${it.label}</span><span class="m">${it.right ?? ""}</span></button>`).join("");
+    $("menu").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { SFX.menu(); items[+b.dataset.i].go(); }));
+  }
+  function render() {
+    $("msg").innerHTML = message;
+    $("msg").classList.toggle("alert", phase === "defend");
+    scoreboard(); labels(); refreshCard();
+    if (phase === "over") return menu("GAME OVER", [{ label: "PLAY AGAIN", go: () => location.reload() }]);
+    if (phase === "busy") return menu("...", []);
+    if (phase === "pick_thrower") return menu("YOUR TURN", [
+      { label: "THROW", right: "pick", disabled: true, go() {} },
+      { label: "END TURN", right: "", go: endTurn },
+    ]);
+    if (phase === "move_prompt") return menu("MOVE PLAYERS?", [
+      { label: "YES", right: "move", go: startMoves },
+      { label: "NO", right: "end turn", go: () => finishTurn() },
+    ]);
+    if (phase === "move") return menu(`MOVES ${moved.size}`, [
+      { label: "CONFIRM", right: "end turn", go: () => { moveSel = null; finishTurn(); } },
+      { label: "RESET MOVES", right: "", disabled: moved.size === 0, go: resetMoves },
+    ]);
+    if (phase === "pick_target" && handoff) return menu("HAND OFF", [
+      { label: "PICK A TEAMMATE", right: "", disabled: true, go() {} },
+      { label: "BACK TO THROW", go: () => { handoff = false; message = throwPrompt(sel); render(); } },
+    ]);
+    if (phase === "pick_target") return menu(sel.name, [
+      { label: "THROW AT...", right: "pick", disabled: true, go() {} },
+      { label: "HAND OFF", right: "pick", go: () => { handoff = true; message = `<p><span class="big">HAND OFF</span>: click any teammate to give ${sel.name}'s ball to them.</p><p>Hover a teammate to compare their throw.</p>`; render(); } },
+      { label: "CANCEL", go: () => { sel = null; handoff = false; phase = "pick_thrower"; message = `<p>Pick a player holding a ball.</p>`; render(); } },
+    ]);
+    if (phase === "confirm") return menu("CONFIRM", [
+      { label: "THROW!", right: fm(throwMod(sel)), go: () => humanThrow() },
+      { label: "CANCEL", go: () => { tgt = null; phase = "pick_target"; message = throwPrompt(sel); render(); } },
+    ]);
+    if (phase === "defend") {
+      const t = incoming.tgt;
+      // Dodge and Catch always; Block when holding a ball. Mods include the defender's row.
+      const am = throwMod(incoming.att);
+      return menu(`${t.name} DEFENDS`, ["dodge", "catch", "block"].filter((d) => legal(t.balls).includes(d)).map((d) => ({
+        label: d.toUpperCase(), right: `${fm(defMod(t, d))} ${pct(1 - hitChance(am, defMod(t, d)))}`, go: () => defend(d),
+      })));
+    }
+  }
+
+  // ---------- Input ----------
+  function at(ev) {
+    const r = cv.getBoundingClientRect();
+    const x = ((ev.clientX - r.left) / r.width) * 384, y = ((ev.clientY - r.top) / r.height) * 264;
+    return players.filter((p) => !p.out && x > p.x - 14 && x < p.x + 14 && y > p.y - 42 && y < p.y + 3).sort((a, b) => b.y - a.y)[0] || null;
+  }
+  cv.addEventListener("mousemove", (ev) => {
+    const h = at(ev);
+    if (h === hover) return;
+    hover = h; refreshCard();
+    // Hovering a possible target previews your odds against them.
+    if (phase === "pick_target" && sel) {
+      if (hover && hover.side === "blue" && !handoff) {
+        $("msg").innerHTML = `<p><span class="big">${sel.name} vs ${hover.name}</span>: your hit chance</p><p>ROWS <span style="color:${rangeOf(sel, hover).color}">${rangeText(sel, hover)}</span> &middot; ${oddsLines(sel, hover)}</p><p>Click to pick ${hover.name}.</p>`;
+      } else if (hover && hover.side === "red" && hover !== sel) {
+        const better = mod(hover.st.throw) - mod(sel.st.throw);
+        $("msg").innerHTML = `<p><span class="big">HAND TO ${hover.name}?</span></p><p>THROW ${hover.st.throw} (${fm(mod(hover.st.throw))}) vs ${sel.name}'s ${fm(mod(sel.st.throw))}: <span class="${better > 0 ? "safe" : better < 0 ? "hit" : "big"}">${better > 0 ? "stronger arm" : better < 0 ? "weaker arm" : "same arm"}</span>.</p><p>${handoff || hover.balls === 0 ? "Click to hand the ball over." : `${hover.name} already has a ball: use HAND OFF to pass anyway.`}</p>`;
+      } else $("msg").innerHTML = message;
+    }
+  });
+  cv.addEventListener("mouseleave", () => { hover = null; refreshCard(); if (phase === "pick_target") $("msg").innerHTML = message; });
+  // The open spot nearest a click on your side (for the move step).
+  function spotAt(ev) {
+    const r = cv.getBoundingClientRect();
+    const x = ((ev.clientX - r.left) / r.width) * 384, y = ((ev.clientY - r.top) / r.height) * 264;
+    return openSpots("red").find((sp) => Math.abs(sp.x - x) < 18 && y > sp.y - 40 && y < sp.y + 8) || null;
+  }
+  cv.addEventListener("click", (ev) => {
+    if (phase === "move" && side === "red") return moveClick(ev);
+    const p = at(ev);
+    if (!p || side !== "red") return;
+    if (phase === "pick_target" && p.side === "red" && p !== sel && (handoff || p.balls === 0)) {
+      // Hand-off: any holder can pass one ball to any teammate who's in (no roll).
+      // The receiver becomes the selected thrower, ready to throw.
+      sel.balls--; p.balls++; SFX.select();
+      const from = sel.name;
+      sel = p; handoff = false;
+      message = `<p><span class="safe">${from} hands the ball to ${p.name}.</span></p>` + throwPrompt(p);
+    } else if ((phase === "pick_thrower" || phase === "pick_target" || phase === "confirm") && p.side === "red" && p.balls > 0 && p !== sel) {
+      sel = p; tgt = null; handoff = false; phase = "pick_target"; SFX.select();
+      message = throwPrompt(p);
+    } else if ((phase === "pick_target" || phase === "confirm") && p.side === "blue" && !handoff) {
+      tgt = p; phase = "confirm"; SFX.target();
+      const cpu = cpuDefense(p);
+      message = `<p><span class="big">${sel.name} &rarr; ${p.name}? YOUR HIT CHANCE:</span></p><p>${oddsLines(sel, p)}</p>` +
+        `<p>ROWS: <span style="color:${rangeOf(sel, p).color}">${rangeText(sel, p)}</span>. The CPU will ${cpu.toUpperCase()}: <span class="big">${pct(hitChance(throwMod(sel), defMod(p, cpu)))}</span> to hit. If ${p.name} catches it, ${sel.name} is out.</p>`;
+    } else return;
+    render();
+  });
+
+  function moveClick(ev) {
+    const spot = spotAt(ev);
+    if (spot && moveSel) {
+      moveTo(moveSel, spot.row, spot.i); moved.add(moveSel); SFX.select();
+      message = `<p><span class="safe">${moveSel.name} moves to the ${ROWS[spot.row].label} row.</span></p>${movePrompt()}`;
+      moveSel = null; return render();
+    }
+    const p = at(ev);
+    if (!p || p.side !== "red") return;
+    if (moved.has(p)) { message = `<p>${p.name} has already moved this turn.</p>${movePrompt()}`; return render(); }
+    moveSel = p; SFX.target();
+    message = `<p><span class="big">${p.name}</span> (${ROWS[p.slot.row].label} row): click an open spot to move there.</p><p>FRONT throws +1 / defends -1. BACK throws -1 / defends +1.</p>`;
+    render();
+  }
+  function movePrompt() {
+    return `<p>Click a player, then an open spot. Each player moves once. CONFIRM ends your turn.</p>`;
+  }
+  function startMoves() {
+    phase = "move"; moved = new Set(); moveSel = null;
+    moveStart = active("red").map((p) => [p, { ...p.slot }]);
+    message = `<p class="big">MOVE PLAYERS.</p>${movePrompt()}`;
+    render();
+  }
+  function resetMoves() {
+    moveStart.forEach(([p, sl]) => moveTo(p, sl.row, sl.i));
+    moved = new Set(); moveSel = null; message = `<p>Moves reset.</p>${movePrompt()}`; render();
+  }
+  // Ends the current team's turn and hands play to the other team.
+  function finishTurn() { phase = "busy"; moved = new Set(); moveSel = null; switchSide(); }
+
+  function throwPrompt(p) {
+    return `<p><span class="big">${p.name}</span> has the ball. THROW ${p.st.throw} (${fm(mod(p.st.throw))}).</p><p>Pick a blue player to throw at, or a teammate to hand it to.</p>`;
+  }
+
+  // ---------- Turn flow ----------
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function rollShow(lines) {
+    for (let i = 0; i < 7; i++) { $("msg").innerHTML = lines(d20(), d20()); SFX.tick(); await wait(60); }
+  }
+  async function fly(a, b) {
+    const sx = a.x + (a.side === "red" ? 11 : -11), sy = a.y - 22, ex = b.x, ey = b.y - 22;
+    lunge = { p: a, dx: 2 };
+    for (let i = 0; i <= 16; i++) { const t = i / 16; flight = { x: sx + (ex - sx) * t, y: sy + (ey - sy) * t - Math.sin(t * Math.PI) * 16 }; await wait(22); }
+    flight = null; lunge = null;
+  }
+  function cpuDefense(t) {
+    return ["catch", "block", "dodge"].filter((d) => legal(t.balls).includes(d)).reduce((b, d) => (defMod(t, d) > defMod(t, b) ? d : b));
+  }
+  function give(sideName, n) {
+    const opts = active(sideName);
+    if (opts.length) pick(opts).balls += n;
+  }
+  // Out players line up along the back of their side, under the banners.
+  function benchSlot(p) { const i = queue[p.side].indexOf(p.id); return { x: p.side === "red" ? 22 + i * 22 : 362 - i * 22, y: 94 }; }
+  function relayout() { players.forEach((p) => { const pos = p.out ? benchSlot(p) : p.home; p.x = pos.x; p.y = pos.y; }); }
+
+  async function resolve(att, t, def) {
+    phase = "busy"; render();
+    const sm = mod(att.st.throw), ar_ = ROWS[att.slot.row], am = sm + ar_.thr;
+    const ds = mod(t.st[def]), dr_ = ROWS[t.slot.row], dm = ds + dr_.def;
+    const line = (a, b) => `<p>${att.name} THROWS <span class="roll">${a}</span> ${fm(sm)}${ar_.thr ? ` ${fm(ar_.thr)} ${ar_.label}` : ""} = ${a + am}</p><p>${t.name} ${def.toUpperCase()}S <span class="roll">${b}</span> ${fm(ds)}${dr_.def ? ` ${fm(dr_.def)} ${dr_.label}` : ""} = ${b + dm}</p>`;
+    await rollShow(line);
+    const ar = d20(), dr = d20();
+    const hit = ar + am > dr + dm;
+    $("msg").innerHTML = line(ar, dr);
+    SFX.whoosh();
+    await fly(att, t);
+    att.balls--; thrownThisTurn++;
+    let out;
+    if (def === "catch" && !hit) {
+      const n = att.balls + 1; att.balls = 0; att.out = true; queue[att.side].push(att.id); t.balls += n;
+      out = `<p class="safe">CAUGHT! ${att.name} IS OUT.</p>`;
+      SFX.catch(); SFX.whistle(0.35); // the thrower is out
+      const q = queue[t.side];
+      if (q.length && active(t.side).length <= 5) {
+        const back = players[q.shift()];
+        if (takenBy(t.side, back.slot.row, back.slot.i)) { const sp = openSpots(t.side).find((o) => o.row === back.slot.row) || openSpots(t.side)[0]; back.slot = { row: sp.row, i: sp.i }; back.home = spotPos(t.side, sp.row, sp.i); }
+        back.out = false; back.balls = 0; out += `<p class="safe">${back.name} IS BACK IN!</p>`; SFX.revive(1.15);
+      }
+    } else if (hit) {
+      const n = t.balls + 1; t.balls = 0; t.out = true; queue[t.side].push(t.id); give(t.side, n);
+      out = `<p class="hit">${def === "catch" ? "FUMBLED!" : "HIT!"} ${t.name} IS OUT.</p>`;
+      SFX.hit(); SFX.whistle(0.3);
+    } else {
+      give(t.side, 1);
+      out = `<p class="safe">${t.name} ${def === "dodge" ? "DODGES" : "BLOCKS"} IT!</p>`;
+      if (def === "dodge") SFX.dodge(); else SFX.block();
+    }
+    message = line(ar, dr) + out;
+    sel = null; tgt = null; incoming = null; handoff = false;
+    relayout(); render();
+    await wait(1100);
+    return after();
+  }
+
+  async function after() {
+    for (const s of ["red", "blue"]) if (!active(s).length) {
+      phase = "over"; message = `<p class="big">${s === "red" ? "BLUE WINS." : "YOU WIN!"}</p><p>${active(s === "red" ? "blue" : "red").length} left standing.</p>`; render();
+      setTimeout(() => (s === "red" ? SFX.lose() : SFX.win()), 400);
+      return;
+    }
+    const mine = holders(side), theirs = holders(side === "red" ? "blue" : "red");
+    if (!mine.length) {
+      if (side === "red") { phase = "move_prompt"; message += `<p><span class="big">Out of balls.</span> Move players before Blue's turn?</p>`; return render(); }
+      return cpuEndTurn();
+    }
+    if (side === "red") { phase = "pick_thrower"; message += `<p>Pick your next thrower, or end your turn.</p>`; render(); }
+    else cpuMove();
+  }
+  function showBanner() {
+    const b = $("banner");
+    b.hidden = true; void b.offsetWidth; // restart the sweep
+    b.className = side;
+    b.textContent = side === "red" ? "YOUR TURN!" : "CPU TURN";
+    SFX.turn(side === "red");
+    b.hidden = false;
+    clearTimeout(showBanner.t);
+    showBanner.t = setTimeout(() => (b.hidden = true), 1300);
+  }
+  async function switchSide() {
+    side = side === "red" ? "blue" : "red"; turn++; thrownThisTurn = 0; cpuPasses = 0;
+    if (!holders(side).length) side = side === "red" ? "blue" : "red";
+    showBanner();
+    if (side === "red") { phase = "pick_thrower"; message = `<p class="big">YOUR TURN.</p><p>Pick a player holding a ball.</p>`; render(); }
+    else { phase = "busy"; message = `<p class="big">CPU TURN.</p><p>Blue is picking a thrower...</p>`; render(); await wait(1400); cpuMove(); }
+  }
+  function endTurn() {
+    sel = null; tgt = null; handoff = false;
+    phase = "move_prompt"; message = `<p class="big">END OF TURN.</p><p>Move players around before Blue's turn?</p>`;
+    render();
+  }
+  // CPU end of turn: same step as the player. Ball holders step up to the front
+  // (better throws), players without a ball drop to the back (harder to hit).
+  async function cpuEndTurn() {
+    phase = "busy";
+    const plan = active("blue").map((p) => ({ p, want: p.balls > 0 ? "front" : "back" })).filter((m) => m.p.slot.row !== m.want);
+    let n = 0;
+    for (const m of plan) {
+      if (n >= 3) break;
+      const sp = openSpots("blue").find((o) => o.row === m.want);
+      if (!sp) continue;
+      moveTo(m.p, sp.row, sp.i); n++; SFX.select();
+      message = `<p class="big">BLUE MOVES ${m.p.name} TO THE ${ROWS[sp.row].label} ROW.</p>`;
+      render(); await wait(700);
+    }
+    finishTurn();
+  }
+  // The CPU's best shot from one thrower: the target with the best chance to hit,
+  // after range, against that target's best defense. A target who can catch is
+  // riskier (a catch puts the thrower out), so it scores a little lower.
+  function bestShotFrom(h) {
+    let best = null;
+    for (const t of active("red")) {
+      const p = hitChance(throwMod(h), bestDef(t));
+      // every target can try a catch now; the riskier the catch, the lower the score
+      const score = p - 0.25 * (1 - hitChance(throwMod(h), defMod(t, "catch")));
+      if (!best || score > best.score) best = { h, t, p, score };
+    }
+    return best;
+  }
+  let cpuPasses = 0;
+  async function cpuMove() {
+    const holdersNow = holders("blue");
+    const shots = holdersNow.map(bestShotFrom);
+    let best = shots.reduce((a, b) => (b.score > a.score ? b : a));
+    // Hand off when a teammate (better arm or closer) has a clearly better shot.
+    if (cpuPasses < 2) {
+      let pass = null;
+      for (const s of shots) for (const m of active("blue")) {
+        if (m === s.h) continue;
+        const alt = bestShotFrom(m);
+        if (alt.score > best.score + 0.08 && (!pass || alt.score > pass.alt.score)) pass = { from: s.h, to: m, alt };
+      }
+      if (pass) {
+        cpuPasses++;
+        pass.from.balls--; pass.to.balls++; SFX.select();
+        message = `<p class="big">${pass.from.name} HANDS THE BALL TO ${pass.to.name}.</p><p>Blue is setting up a better shot...</p>`;
+        phase = "busy"; render(); await wait(1200);
+        return cpuMove();
+      }
+    }
+    // Bank the last ball (keep it to block with) when the throw isn't worth it.
+    if (holdersNow.length === 1 && thrownThisTurn > 0 && holders("red").length && best.p < 0.55) {
+      cpuPasses = 0;
+      message = `<p>Blue ends its turn and keeps its ball.</p>`;
+      render(); await wait(700);
+      return cpuEndTurn();
+    }
+    const att = best.h, t = best.t;
+    incoming = { att, tgt: t }; phase = "defend"; SFX.incoming();
+    const safe = legal(t.balls).map((d) => `${d.toUpperCase()} <span class="safe">${pct(1 - hitChance(throwMod(att), defMod(t, d)))}</span>`).join(" &middot; ");
+    message = `<p class="big">INCOMING! ${att.name} IS THROWING AT ${t.name}!</p><p>${att.name} throws ${fm(throwMod(att))} (${rangeText(att, t)}). Your chance to stay safe: ${safe}</p><p>${t.balls === 0 ? "No ball, so no Block. " : ""}A good catch puts ${att.name} out and brings a teammate back.</p>`;
+    render();
+  }
+  function defend(d) { const { att, tgt: t } = incoming; resolve(att, t, d); }
+  function humanThrow() { resolve(sel, tgt, cpuDefense(tgt)); }
+
+  window.addEventListener("resize", labels);
+  const soundBtn = $("sound");
+  const showSound = () => { soundBtn.textContent = SFX.muted ? "SOUND: OFF" : "SOUND: ON"; soundBtn.setAttribute("aria-pressed", String(!SFX.muted)); };
+  soundBtn.addEventListener("click", () => { SFX.setMuted(!SFX.muted); showSound(); if (!SFX.muted) SFX.menu(); });
+  showSound();
+  loadAll.then(() => { refUp = raisedRef(); labels(); render(); showBanner(); requestAnimationFrame(frame); });
+})();
+</script>
