@@ -44,6 +44,8 @@
   .pip.out { background: transparent; box-shadow: inset 0 0 0 2px currentColor; opacity: .5; }
   .red { color: var(--red); } .blue { color: var(--blue); }
   .turnlabel { color: var(--dim); text-align: center; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+  .clock { color: var(--ink); min-width: 4ch; }
+  .clock.low { color: #ff5030; animation: blink 1s steps(1) infinite; }
   .turnchip { padding: 4px 8px; color: #fff; border: 2px solid #000; box-shadow: 0 0 0 2px currentColor; animation: chip 1s steps(1) infinite; }
   .turnchip.red { background: var(--red); color: #fff; }
   .turnchip.blue { background: #0058f8; color: #fff; }
@@ -192,6 +194,7 @@
         <li>Click a <b>red</b> player holding a ball, then a blue player, then <b>THROW!</b></li>
         <li>Or click a teammate to <b>hand off</b> the ball to a better arm.</li>
         <li><b>END TURN</b>, then choose whether to <b>move players</b> into open spots. <b>CONFIRM</b> hands it to Blue.</li>
+        <li><b>Throw clock:</b> you get 30 seconds a turn to pick your throws. If it runs out, every ball you hold goes to Blue.</li>
       </ul>
     </div>
     <div>
@@ -321,6 +324,7 @@
       select: () => { tone(660, 0.06, { vol: 0.35 }); tone(990, 0.08, { vol: 0.35, at: 0.06 }); },
       target: () => { tone(440, 0.07, { vol: 0.35 }); tone(330, 0.12, { vol: 0.35, at: 0.07 }); },
       menu: () => tone(880, 0.04, { vol: 0.25 }),
+      tick: () => tone(1760, 0.03, { vol: 0.2 }),
       start: () => [[1319, 0], [1976, 0.09]].forEach(([f, at]) => tone(f, 0.22, { vol: 0.3, at })),
       tick: () => tone(1500 + Math.random() * 400, 0.025, { vol: 0.15, type: "triangle" }),
       whoosh: () => noise(0.32, { vol: 0.45, freq: 900, q: 0.8, type: "bandpass" }),
@@ -693,7 +697,7 @@
     $("redSide").classList.toggle("on", live() && side === "red");
     $("blueSide").classList.toggle("on", live() && side === "blue");
     $("turnLabel").innerHTML = phase === "over" ? "FINAL" : phase === "draft" ? "TEAM DRAFT" : !live() ? "OPENING RUSH"
-      : `<span>TURN ${turn}</span><span class="turnchip ${side}">${side === "red" ? "YOUR TURN" : "CPU TURN"}</span>`;
+      : `<span>TURN ${turn}</span><span class="turnchip ${side}">${side === "red" ? "YOUR TURN" : "CPU TURN"}</span>${side === "red" ? clockText() : ""}`;
   }
   // The matchup that matters right now, if any: [thrower, defender].
   function matchup() {
@@ -966,7 +970,7 @@
     side = side === "red" ? "blue" : "red"; turn++; thrownThisTurn = 0; cpuPasses = 0;
     if (!holders(side).length) side = side === "red" ? "blue" : "red";
     showBanner();
-    if (side === "red") { phase = "pick_thrower"; message = `<p class="big">YOUR TURN.</p><p>Pick a player holding a ball.</p>`; render(); }
+    if (side === "red") { resetClock(); phase = "pick_thrower"; message = `<p class="big">YOUR TURN.</p><p>Pick a player holding a ball.</p>`; render(); }
     else { phase = "busy"; message = `<p class="big">CPU TURN.</p><p>Blue is picking a thrower...</p>`; render(); await wait(1400); cpuMove(); }
   }
   function endTurn() {
@@ -1064,7 +1068,7 @@
     const as = tag || RESUME_AS[phase];
     if (!as) return;
     store.set(SAVE[mode], {
-      v: 1, mode, campGame, tag: as, side, turn, thrownThisTurn, cpuPasses, message,
+      v: 1, mode, campGame, tag: as, side, turn, thrownThisTurn, cpuPasses, message, clock,
       roster, queue, incoming: incoming ? [incoming.att.id, incoming.tgt.id] : null,
       players: players.map((p) => ({ id: p.id, out: p.out, balls: p.balls, slot: p.slot })),
     });
@@ -1074,7 +1078,7 @@
     setupMatch(sv.roster.red, sv.roster.blue);
     sv.players.forEach((q) => { const p = players[q.id]; p.out = q.out; p.balls = q.balls; p.slot = q.slot; p.home = spotPos(p.side, q.slot.row, q.slot.i); });
     queue.red = sv.queue.red; queue.blue = sv.queue.blue;
-    side = sv.side; turn = sv.turn; thrownThisTurn = sv.thrownThisTurn; cpuPasses = sv.cpuPasses; message = sv.message;
+    side = sv.side; turn = sv.turn; thrownThisTurn = sv.thrownThisTurn; cpuPasses = sv.cpuPasses; message = sv.message; clock = sv.clock ?? CLOCK;
     if (sv.incoming) incoming = { att: players[sv.incoming[0]], tgt: players[sv.incoming[1]] };
     relayout(); Intro.hide();
     if (sv.tag === "cpu") { phase = "busy"; render(); wait(900).then(cpuMove); }
@@ -1092,6 +1096,37 @@
     setTimeout(() => (won ? SFX.win() : SFX.lose()), 400);
   }
 
+  // ---------- Throw clock ----------
+  // Red gets 30 seconds of thinking time a turn. It runs only while Red is choosing a throw,
+  // and pauses during throws, menus and a hidden tab. At zero, all of Red's balls go to Blue.
+  const CLOCK = 30;
+  let clock = CLOCK, clockAt = performance.now(), lastTick = 0;
+  const resetClock = () => { clock = CLOCK; lastTick = 0; };
+  const clockSecs = () => Math.ceil(clock);
+  const clockText = () => `<span id="clock" class="clock${clockSecs() <= 10 ? " low" : ""}">0:${String(clockSecs()).padStart(2, "0")}</span>`;
+  const clockRuns = () => side === "red" && ["pick_thrower", "pick_target", "confirm"].includes(phase) && $("intro").hidden && !document.hidden;
+  setInterval(() => {
+    const now = performance.now(), dt = Math.min((now - clockAt) / 1000, 0.5);
+    clockAt = now;
+    if (!clockRuns()) return;
+    clock = Math.max(0, clock - dt);
+    const s = clockSecs(), el = $("clock");
+    if (el) { el.textContent = `0:${String(s).padStart(2, "0")}`; el.classList.toggle("low", s <= 10); }
+    if (s <= 5 && s > 0 && s !== lastTick) { lastTick = s; SFX.tick(); }
+    if (clock === 0) clockOut();
+  }, 100);
+  // Time's up: Red's balls go to Blue, spread to whoever holds the fewest, and Blue's turn starts.
+  async function clockOut() {
+    const n = team("red").reduce((a, p) => a + p.balls, 0);
+    team("red").forEach((p) => (p.balls = 0));
+    for (let k = 0; k < n; k++) active("blue").reduce((a, b) => (b.balls < a.balls ? b : a)).balls++;
+    sel = null; tgt = null; handoff = false; phase = "busy";
+    message = `<p class="big hit">THROW CLOCK!</p><p>Time's up. Red forfeits ${n} ball${n === 1 ? "" : "s"} to Blue.</p>`;
+    SFX.whistle(); render();
+    await wait(1800);
+    finishTurn();
+  }
+
   // ---------- Matches ----------
   function setupMatch(red, blue) {
     matchId++;
@@ -1100,7 +1135,7 @@
     red.forEach((b, k) => players.push(makePlayer(k, "red", b)));
     blue.forEach((b, k) => players.push(makePlayer(6 + k, "blue", b)));
     queue.red = []; queue.blue = [];
-    side = "red"; turn = 1; thrownThisTurn = 0; cpuPasses = 0;
+    side = "red"; turn = 1; thrownThisTurn = 0; cpuPasses = 0; resetClock();
     moved = new Set(); moveSel = null; moveStart = null;
     sel = tgt = incoming = hover = flight = lunge = null; handoff = false; rushBalls = [];
   }
@@ -1170,7 +1205,7 @@
     mode = "campaign";
     setupMatch(draft.team, []);
     draftSel = players[0];
-    phase = "draft"; Intro.hide(); draftMessage(); render();
+    phase = "draft"; Intro.hide(); Music.play("team"); draftMessage(); render();
   }
   const saveDraft = () => store.set(CAMP, draft);
   const entryOf = (p) => draft.team[p.id];
@@ -1236,14 +1271,15 @@
   // ---------- Title music ----------
   // Browsers block sound until the first tap or key, so a blocked start retries on the next one.
   const Music = (() => {
-    const a = new Audio("title.m4a");
+    const tracks = { title: "title.m4a", team: "team.m4a" };
+    const a = new Audio();
     a.loop = true; a.preload = "auto"; a.volume = 0.6;
-    let want = false;
+    let want = null;
     const tryPlay = () => { if (want && !SFX.muted && a.paused) a.play().catch(() => {}); };
     ["pointerdown", "keydown"].forEach((t) => window.addEventListener(t, tryPlay));
     return {
-      title() { if (!want) { want = true; a.currentTime = 0; } tryPlay(); },
-      stop() { want = false; a.pause(); },
+      play(name) { if (want !== name) { want = name; a.src = tracks[name]; } tryPlay(); },
+      stop() { want = null; a.pause(); },
       muted(m) { if (m) a.pause(); else tryPlay(); },
     };
   })();
@@ -1259,7 +1295,7 @@
       at = n; timers.forEach(clearTimeout); timers = [];
       scenes.forEach((sc, k) => { sc.hidden = k !== n; sc.classList.remove("out"); });
       hint.hidden = n >= last;
-      if (n === last) Music.title();
+      if (n === last) Music.play("title");
       if (n < last) {
         later(2200, () => scenes[n].classList.add("out"));
         later(2650, () => { scenes[n].hidden = true; });
