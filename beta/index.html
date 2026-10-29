@@ -1044,7 +1044,7 @@
   window.addEventListener("resize", labels);
   const soundBtn = $("sound");
   const showSound = () => { soundBtn.textContent = SFX.muted ? "SOUND: OFF" : "SOUND: ON"; soundBtn.setAttribute("aria-pressed", String(!SFX.muted)); };
-  soundBtn.addEventListener("click", () => { SFX.setMuted(!SFX.muted); showSound(); if (!SFX.muted) SFX.menu(); });
+  soundBtn.addEventListener("click", () => { SFX.setMuted(!SFX.muted); Music.muted(SFX.muted); showSound(); if (!SFX.muted) SFX.menu(); });
   showSound();
   $("menuBtn").addEventListener("click", () => { SFX.menu(); Intro.menu(); });
 
@@ -1233,6 +1233,21 @@
     newMatch(red, rollTeam(shuffle(NAMES.filter((n) => !taken.has(n))).slice(0, 6)));
   }
 
+  // ---------- Title music ----------
+  // Browsers block sound until the first tap or key, so a blocked start retries on the next one.
+  const Music = (() => {
+    const a = new Audio("title.m4a");
+    a.loop = true; a.preload = "auto"; a.volume = 0.6;
+    let want = false;
+    const tryPlay = () => { if (want && !SFX.muted && a.paused) a.play().catch(() => {}); };
+    ["pointerdown", "keydown"].forEach((t) => window.addEventListener(t, tryPlay));
+    return {
+      title() { if (!want) { want = true; a.currentTime = 0; } tryPlay(); },
+      stop() { want = false; a.pause(); },
+      muted(m) { if (m) a.pause(); else tryPlay(); },
+    };
+  })();
+
   // ---------- Intro and main menu ----------
   const Intro = (() => {
     const el = $("intro"), scenes = ["sc1", "sc2", "sc3", "sc4"].map($), hint = $("skipHint"), start = $("pressStart"), box = $("mainMenu");
@@ -1244,6 +1259,7 @@
       at = n; timers.forEach(clearTimeout); timers = [];
       scenes.forEach((sc, k) => { sc.hidden = k !== n; sc.classList.remove("out"); });
       hint.hidden = n >= last;
+      if (n === last) Music.title();
       if (n < last) {
         later(2200, () => scenes[n].classList.add("out"));
         later(2650, () => { scenes[n].hidden = true; });
@@ -1267,7 +1283,7 @@
     return {
       start() { el.hidden = false; show(0); },
       menu() { el.hidden = false; show(last, false); },
-      hide() { el.hidden = true; timers.forEach(clearTimeout); },
+      hide() { el.hidden = true; timers.forEach(clearTimeout); Music.stop(); },
     };
   })();
   function mainMenu() {
