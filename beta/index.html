@@ -168,6 +168,41 @@
   /* Opening Rush and campaign draft */
   .msg .red { color: var(--t1); } .msg .blue { color: var(--t2); }
   .msg .used { color: #55556a; text-decoration: line-through; } .msg .what { color: var(--dim); }
+  /* Character sheet: build one drafted player. */
+  #sheet { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.78); display: grid; place-items: safe center; overflow: auto; padding: 16px; }
+  #sheet[hidden] { display: none; }
+  .sheet { box-sizing: border-box; width: min(580px, 100%); background: var(--tv); font-size: 10px; line-height: 1.5; display: grid; gap: 14px; }
+  .sheet button { font-family: var(--pixel); font-size: 10px; color: var(--ink); background: #000; border: 2px solid #6a6a7a; padding: 6px 8px; cursor: pointer; }
+  .sheet button:hover:not(:disabled) { border-color: var(--ink); }
+  .sheet button.on { background: var(--gold); color: #000; border-color: var(--gold); }
+  .sheet button:disabled { opacity: .4; cursor: default; }
+  .shead { display: flex; align-items: center; gap: 8px; }
+  .shead .who { flex: 1; text-align: center; color: var(--gold); }
+  .sheet .shead .done { background: var(--green); color: #000; border-color: var(--green); }
+  .sid { display: flex; gap: 14px; align-items: center; }
+  #sheetPic { width: 84px; height: 120px; image-rendering: pixelated; background: #1e222e; border: 2px solid #3c4458; flex: none; }
+  .sfields { display: grid; gap: 10px; flex: 1; min-width: 0; }
+  .sfields label, .seg { display: flex; align-items: center; gap: 6px; color: var(--dim); flex-wrap: wrap; }
+  #sheetName { font-family: var(--pixel); font-size: 12px; background: #000; color: var(--ink); border: 2px solid var(--ink); padding: 5px 6px; width: 9em; max-width: 100%; text-transform: uppercase; }
+  .sec { color: var(--dim); margin-bottom: 6px; }
+  .chips { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 8px; }
+  .sheet .chip { display: grid; justify-items: center; gap: 4px; padding: 6px 2px; }
+  .sheet .chip b { font-size: 16px; font-weight: 400; }
+  .chip .dice { display: flex; gap: 2px; } .sheet .chip .die { font-size: 9px; line-height: 1.4; min-width: 1.3em; margin: 0; padding: 0 1px; }
+  .chip .tag { font-size: 8px; color: var(--gold); }
+  .sheet .chip.used { opacity: .35; }
+  .sheet .bigbtn { width: 100%; padding: 12px; background: var(--gold); color: #000; border-color: var(--gold); font-size: 12px; }
+  .slots { display: grid; gap: 6px; }
+  .sheet .slot { display: grid; grid-template-columns: 9.5em 5em 1fr; align-items: center; gap: 8px; text-align: left; }
+  .sheet .slot.open { border-color: var(--gold); }
+  .slot .val { color: #55556a; } .slot.full .val { color: var(--ink); } .slot .val i { color: var(--gold); font-style: normal; }
+  .slot .what { color: var(--dim); font-size: 8px; }
+  .shint { color: var(--dim); } .shint b { color: var(--gold); font-weight: 400; }
+  @media (max-width: 640px) {
+    .chips { grid-template-columns: repeat(3, 1fr); }
+    .sheet .slot { grid-template-columns: 1fr auto; }
+    .slot .what { grid-column: 1 / -1; }
+  }
   .die { display: inline-block; min-width: 1.6em; text-align: center; background: var(--ink); color: #000; padding: 0 2px; margin-right: 2px; }
   .die.drop { background: #4a4a5a; color: #8a8a9a; text-decoration: line-through; }
   #nameForm { display: flex; gap: 6px; margin-top: 6px; }
@@ -257,6 +292,7 @@
   </div>
   <div class="skip" id="skipHint">TAP TO SKIP</div>
 </div>
+<div id="sheet" hidden><div class="box sheet" id="sheetBox" role="dialog" aria-label="Build player"></div></div>
 
 <script>
 (() => {
@@ -657,7 +693,7 @@
 
   // Campaign locker room: six lockers, a bench, and each drafted player standing in front of theirs.
   const LOCKER_X = (i) => 9 + i * 62; // 56 wide, 6 apart
-  const lockerSpot = (i) => ({ x: LOCKER_X(i) + 28, y: 252 });
+  const lockerSpot = (i) => ({ x: LOCKER_X(i) + 28, y: 250 });
   function drawLocker(t) {
     g.fillStyle = "#262c3a"; g.fillRect(0, 0, 384, 264);
     g.fillStyle = "#2e3546";
@@ -765,9 +801,11 @@
       let x = p.x, y = p.y;
       if (lunge && lunge.p === p) x += (p.side === "red" ? 1 : -1) * lunge.dx;
       if (!p.out && p === sel) y -= Math.floor(t / 250) % 2;
-      if (!p.out) { g.fillStyle = "rgba(0,0,0,.28)"; g.fillRect(x - 10, y - 1, 20, 3); }
+      const k = scene === "locker" ? 2 : 1; // full size next to the lockers
+      if (!p.out) { g.fillStyle = "rgba(0,0,0,.28)"; g.fillRect(x - 10 * k, y - k, 20 * k, 3 * k); }
       const sp = sprite(p);
-      g.drawImage(sp, Math.round(x - sp.width / 2), Math.round(y - sp.height));
+      g.imageSmoothingEnabled = false;
+      g.drawImage(sp, Math.round(x - (sp.width * k) / 2), Math.round(y - sp.height * k), sp.width * k, sp.height * k);
       if (!p.out && p.balls >= 2) ball(Math.round(x + (p.side === "red" ? -9 : 9)), Math.round(y - 15));
     }
     // move step: open spots on your side, the player being moved
@@ -793,7 +831,7 @@
     if (tgt) crosshair(tgt.x, tgt.y - 20, t);
     if (incoming) { arrow(incoming.att.x, incoming.att.y - 50, tcol("blue").ui, t); alertMark(incoming.tgt.x, incoming.tgt.y - 56, t); }
     if (flight) ball(flight.x, flight.y);
-    if (phase === "draft" && draftSel) arrow(draftSel.x, draftSel.y - 50, "#58d854", t);
+    if (phase === "draft" && draftSel) arrow(draftSel.x, draftSel.y - 90, "#58d854", t);
     requestAnimationFrame(frame);
   }
 
@@ -922,7 +960,8 @@
   function at(ev) {
     const r = cv.getBoundingClientRect();
     const x = ((ev.clientX - r.left) / r.width) * 384, y = ((ev.clientY - r.top) / r.height) * 264;
-    return players.filter((p) => !p.out && x > p.x - 14 && x < p.x + 14 && y > p.y - 42 && y < p.y + 3).sort((a, b) => b.y - a.y)[0] || null;
+    const k = scene === "locker" ? 2 : 1;
+    return players.filter((p) => !p.out && x > p.x - 14 * k && x < p.x + 14 * k && y > p.y - 42 * k && y < p.y + 3).sort((a, b) => b.y - a.y)[0] || null;
   }
   cv.addEventListener("mousemove", (ev) => {
     const h = at(ev);
@@ -947,7 +986,7 @@
   }
   cv.addEventListener("click", (ev) => {
     if (phase === "move" && side === "red") return moveClick(ev);
-    if (phase === "draft") { const d = at(ev); if (d) { draftSel = d; SFX.select(); draftMessage(); render(); } return; }
+    if (phase === "draft") { const d = at(ev); if (d) { draftSel = d; SFX.select(); render(); openSheet(); } return; }
     const p = at(ev);
     if (!p || side !== "red") return;
     if (phase === "pick_target" && p.side === "red" && p !== sel && p.balls < MAX_BALLS && (handoff || p.balls === 0)) {
@@ -1341,7 +1380,7 @@
     if (!COLORS[draft.color]) draft.color = pick(COLOR_KEYS);
     teams = { red: draft, blue: null };
     // Drafts saved before the six stats start their rolls over.
-    draft.team.forEach((e) => { if (!Array.isArray(e.rolls)) Object.assign(e, { st: blankStats(), rolls: null, rerolled: false }); });
+    draft.team.forEach((e) => { if (!Array.isArray(e.rolls) || !e.assign) Object.assign(e, { st: blankStats(), rolls: null, assign: {}, rerolled: false }); });
     mode = "campaign";
     setupMatch(draft.team, []);
     scene = "locker";
@@ -1359,16 +1398,6 @@
     };
   }
   const saveDraft = () => store.set(CAMP, draft);
-  // Male / female is looks only; no stat difference. An auto name follows the change.
-  function bodyDraft() {
-    const e = entryOf(draftSel);
-    e.female = !e.female; draftSel.female = e.female;
-    if (!e.custom) {
-      const used = new Set(draft.team.map((x) => x.name));
-      e.name = draftSel.name = pick(DRAFT_NAMES[e.female ? "f" : "m"].filter((n) => !used.has(n)));
-    }
-    sprites.clear(); saveDraft(); draftMessage(); render();
-  }
   function colorDraft() {
     draft.color = COLOR_KEYS[(COLOR_KEYS.indexOf(draft.color) + 1) % COLOR_KEYS.length];
     applyTeams(); saveDraft(); render();
@@ -1388,91 +1417,109 @@
     });
   }
   const entryOf = (p) => draft.team[p.id];
-  const placed = (e) => STAT_KEYS.filter((k) => e.st[k]).length; // rolls go in highest first
-  const done = (e) => e.rolls && placed(e) === STAT_KEYS.length;
+  // A player is ready once every stat holds one of their six rolls.
+  const done = (e) => !!e.rolls && STAT_KEYS.every((k) => e.assign[k] != null);
+  const unused = (e) => e.rolls.map((_, i) => i).filter((i) => !Object.values(e.assign).includes(i));
   const dieRow = (d) => d.map((v, i) => `<span class="die${i === drop(d) ? " drop" : ""}">${v}</span>`).join("");
+  const roll6 = () => STAT_KEYS.map(() => { const d = [d6(), d6(), d6(), d6()]; return { dice: d, total: d.reduce((a, b) => a + b) - Math.min(...d) }; });
+  function syncStats(e) {
+    e.st = Object.fromEntries(STAT_KEYS.map((k) => [k, e.assign[k] != null ? e.rolls[e.assign[k]].total : 0]));
+    draftSel.st = { ...e.st };
+  }
   function draftMessage() {
-    const e = entryOf(draftSel);
-    if (!e.rolls) { message = `<p class="big">${e.name}</p><p>Tap any player in the locker room to work on them.</p><p>Roll six sets of 4d6. The lowest die in each set is dropped. Then you choose which stat gets each total.</p>`; return; }
-    const n = placed(e);
-    const pool = e.rolls.map((r, i) => `<span class="${i < n ? "used" : i === n ? "big" : ""}">${r.total}</span>`).join(" ");
-    const lines = STAT_INFO.map(([k, lbl, , what]) => `<p>${lbl.padEnd(9, "\u00a0")} ${e.st[k] ? `<span class="big">${e.st[k]}</span> (${fm(mod(e.st[k]))})` : "--"} <span class="what">${what}</span></p>`).join("");
-    message = `<p class="big">${e.name}</p><p>ROLLS ${pool}</p>` +
-      (n < STAT_KEYS.length ? `<p>${dieRow(e.rolls[n].dice)} = <span class="big">${e.rolls[n].total}</span>. Pick a stat for it.</p>` : "") + lines;
+    const ready = draft.team.filter(done).length;
+    message = `<p class="big">${draft.city} ${draft.mascot}</p><p>Tap a player to build them: name, body, look and stats.</p><p>${ready} of 6 ready.</p>`;
   }
-  async function rollDraft() {
+
+  // ---------- Character sheet ----------
+  let selRoll = null, rolling = null;
+  function openSheet() { selRoll = null; $("sheet").hidden = false; renderSheet(); }
+  function closeSheet() { $("sheet").hidden = true; draftMessage(); render(); }
+  function renderSheet() {
+    const e = entryOf(draftSel), shown = rolling || e.rolls;
+    const free = e.rolls ? unused(e) : [];
+    if (e.rolls && !free.includes(selRoll)) selRoll = free[0] ?? null;
+    const owner = (j) => STAT_INFO.find(([k]) => e.assign && e.assign[k] === j);
+    const chips = shown ? shown.map((r, j) => {
+      const o = !rolling && owner(j);
+      return `<button class="chip${o ? " used" : ""}${!rolling && j === selRoll ? " on" : ""}" data-act="chip" data-i="${j}"${o || rolling ? " disabled" : ""}><b>${r.total}</b><span class="dice">${dieRow(r.dice)}</span><span class="tag">${o ? o[2] : "&nbsp;"}</span></button>`;
+    }).join("") : "";
+    const slots = STAT_INFO.map(([k, lbl, , what]) => {
+      const v = e.st[k], full = !!v;
+      return `<button class="slot${full ? " full" : ""}${!full && selRoll != null ? " open" : ""}" data-act="stat" data-k="${k}"${e.rolls && !rolling ? "" : " disabled"}><span>${lbl}</span><span class="val">${full ? `${v} <i>${fm(mod(v))}</i>` : "--"}</span><span class="what">${what}</span></button>`;
+    }).join("");
+    const hint = rolling ? "Rolling..." : !e.rolls ? "Roll six sets of 4d6. The lowest die in each set is dropped." :
+      done(e) ? "All set. Tap a stat to take its number back." : `Tap a stat to put <b>${e.rolls[selRoll].total}</b> there, or pick another number first.`;
+    $("sheetBox").innerHTML = `
+      <div class="shead"><button data-act="prev" aria-label="Previous player">&#9664;</button><span class="who">PLAYER ${draftSel.id + 1} OF 6</span><button data-act="next" aria-label="Next player">&#9654;</button><button class="done" data-act="close">DONE</button></div>
+      <div class="sid"><canvas id="sheetPic" width="84" height="120"></canvas><div class="sfields">
+        <label>NAME <input id="sheetName" maxlength="8" value="${e.name}" autocomplete="off" aria-label="Player name"></label>
+        <div class="seg">BODY <button data-act="body" data-v="m" class="${e.female ? "" : "on"}">MALE</button><button data-act="body" data-v="f" class="${e.female ? "on" : ""}">FEMALE</button></div>
+        <div class="seg">LOOK <button data-act="look" data-d="-1" aria-label="Previous look">&#9664;</button><button data-act="look" data-d="1" aria-label="Next look">&#9654;</button></div>
+      </div></div>
+      <div><div class="sec">DICE</div>${shown ? `<div class="chips">${chips}</div><button data-act="roll"${e.rerolled || rolling ? " disabled" : ""}>${e.rerolled ? "RE-ROLL USED" : "RE-ROLL ALL (ONCE)"}</button>` : `<button class="bigbtn" data-act="roll">ROLL THE DICE</button>`}</div>
+      <div><div class="sec">STATS</div><div class="slots">${slots}</div></div>
+      <p class="shint" style="margin:0">${hint}</p>`;
+    const pc = $("sheetPic").getContext("2d"), sp = sprite(draftSel);
+    pc.imageSmoothingEnabled = false;
+    pc.drawImage(sp, Math.round((84 - sp.width * 3) / 2), 116 - sp.height * 3, sp.width * 3, sp.height * 3);
+  }
+  async function rollSheet() {
     const e = entryOf(draftSel);
+    if (e.rerolled) return;
     if (e.rolls) e.rerolled = true;
-    phase = "busy"; render();
-    for (let i = 0; i < 6; i++) {
-      $("msg").innerHTML = `<p class="big">${e.name} ROLLS...</p>` + STAT_KEYS.map(() => `<p>${[d6(), d6(), d6(), d6()].map((v) => `<span class="die">${v}</span>`).join("")}</p>`).join("");
-      SFX.tick(); await wait(70);
+    for (let n = 0; n < 8; n++) { rolling = roll6(); renderSheet(); SFX.tick(); await wait(70); }
+    rolling = null;
+    e.rolls = roll6().sort((a, b) => b.total - a.total); e.assign = {}; selRoll = null;
+    syncStats(e); saveDraft(); SFX.select(); renderSheet(); render();
+  }
+  // Male / female is looks only; no stat difference. An auto name follows the change.
+  function setBody(e, female) {
+    e.female = female; draftSel.female = female;
+    if (!e.custom) {
+      const used = new Set(draft.team.map((x) => x.name));
+      e.name = draftSel.name = pick(DRAFT_NAMES[female ? "f" : "m"].filter((n) => !used.has(n)));
     }
-    e.rolls = STAT_KEYS.map(() => { const d = [d6(), d6(), d6(), d6()]; return { dice: d, total: d.reduce((a, b) => a + b) - Math.min(...d) }; })
-      .sort((a, b) => b.total - a.total);
-    e.st = blankStats(); draftSel.st = { ...e.st };
-    saveDraft(); SFX.select();
-    phase = "draft"; draftMessage(); render();
+    sprites.clear();
   }
-  function assignDraft(k) {
-    const e = entryOf(draftSel);
-    e.st[k] = e.rolls[placed(e)].total; draftSel.st = { ...e.st };
-    saveDraft(); SFX.select(); draftMessage(); render();
-  }
-  function undoAssign() {
-    const e = entryOf(draftSel);
-    e.st = blankStats(); draftSel.st = { ...e.st };
-    saveDraft(); draftMessage(); render();
-  }
-  function renameDraft() {
-    const e = entryOf(draftSel);
-    message = `<p class="big">NAME YOUR PLAYER</p><form id="nameForm"><input id="nameIn" maxlength="8" value="${e.name}" aria-label="Player name" autocomplete="off"><button type="submit">OK</button></form>`;
-    render();
-    const f = $("nameForm"), inp = $("nameIn");
-    inp.focus();
-    f.addEventListener("submit", (ev) => {
-      ev.preventDefault();
-      const nm = inp.value.toUpperCase().replace(/[^A-Z0-9 .'-]/g, "").trim().slice(0, 8);
-      if (nm) { e.name = nm; e.custom = true; draftSel.name = nm; saveDraft(); }
-      draftMessage(); render();
-    });
-  }
-  function lookDraft() {
-    const e = entryOf(draftSel);
-    e.look = (e.look + 1) % LOOKS.length;
-    draftSel.look = e.look; sprites.clear(); saveDraft(); render();
-  }
+  $("sheet").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-act]");
+    if (!b || b.disabled || rolling) return;
+    const e = entryOf(draftSel), act = b.dataset.act;
+    if (act === "close") return closeSheet();
+    if (act === "roll") return rollSheet();
+    if (act === "prev" || act === "next") { draftSel = players[(draftSel.id + (act === "next" ? 1 : 5)) % 6]; selRoll = null; }
+    else if (act === "body") { if ((b.dataset.v === "f") !== e.female) setBody(e, b.dataset.v === "f"); }
+    else if (act === "look") { e.look = (e.look + Number(b.dataset.d) + LOOKS.length) % LOOKS.length; draftSel.look = e.look; sprites.clear(); }
+    else if (act === "chip") selRoll = Number(b.dataset.i);
+    else if (act === "stat") {
+      const k = b.dataset.k;
+      if (e.assign[k] != null) { selRoll = e.assign[k]; delete e.assign[k]; }
+      else if (selRoll != null) { e.assign[k] = selRoll; selRoll = null; }
+      syncStats(e);
+    }
+    SFX.select(); saveDraft(); renderSheet(); render();
+  });
+  $("sheet").addEventListener("change", (ev) => {
+    if (ev.target.id !== "sheetName") return;
+    const e = entryOf(draftSel), nm = ev.target.value.toUpperCase().replace(/[^A-Z0-9 .'-]/g, "").trim().slice(0, 8);
+    if (nm && nm !== e.name) { e.name = draftSel.name = nm; e.custom = true; saveDraft(); render(); }
+    renderSheet();
+  });
+  $("sheet").addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" && ev.target.id === "sheetName") { ev.preventDefault(); ev.target.blur(); }
+    if (ev.key === "Escape") closeSheet();
+  });
   function draftMenu() {
-    const e = entryOf(draftSel), ready = draft.team.filter(done).length;
-    const reroll = { label: "RE-ROLL", right: e.rerolled ? "used" : "once", disabled: e.rerolled, go: rollDraft };
-    const body = { label: "BODY", right: e.female ? "female" : "male", go: bodyDraft };
-    if (!e.rolls) return menu(`DRAFT ${ready}/6 READY`, [
-      { label: "ROLL DICE", right: "6 x 4d6", go: rollDraft },
-      { label: "NAME", go: renameDraft },
-      body,
-      { label: "LOOK", right: "change", go: lookDraft },
-      { label: "NEXT PLAYER", go: nextDraft },
-      { label: "TEAM NAME", go: teamDraft },
-      { label: "TEAM COLOR", right: COLORS[draft.color].name.toLowerCase(), go: colorDraft },
-    ]);
-    if (!done(e)) return menu(`PUT ${e.rolls[placed(e)].total} IN...`, [
-      ...STAT_INFO.filter(([k]) => !e.st[k]).map(([k, lbl]) => ({ label: lbl, go: () => assignDraft(k) })),
-      { label: "START OVER", right: "", disabled: placed(e) === 0, go: undoAssign },
-      reroll,
-    ]);
-    menu(`DRAFT ${ready}/6 READY`, [
-      { label: "NAME", go: renameDraft },
-      body,
-      { label: "LOOK", right: "change", go: lookDraft },
-      { label: "REASSIGN", right: "stats", go: undoAssign },
-      reroll,
-      { label: "NEXT PLAYER", go: nextDraft },
+    const ready = draft.team.filter(done).length;
+    menu(`TEAM ${ready}/6 READY`, [
+      { label: "BUILD PLAYERS", right: "open", go: openSheet },
       { label: "TEAM NAME", go: teamDraft },
       { label: "TEAM COLOR", right: COLORS[draft.color].name.toLowerCase(), go: colorDraft },
       { label: "START SEASON", right: ready < 6 ? "finish all 6" : "go!", disabled: ready < 6, go: () => { draft.ready = true; saveDraft(); startCampaignGame(); } },
     ]);
   }
-  function nextDraft() { draftSel = players[(draftSel.id + 1) % 6]; draftMessage(); render(); }
+
   function startCampaignGame() {
     const c = store.get(CAMP);
     if (!c) return Intro.menu();
