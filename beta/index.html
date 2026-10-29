@@ -157,6 +157,7 @@
 
   /* Opening Rush and campaign draft */
   .msg .red { color: #ff5030; } .msg .blue { color: var(--blue); }
+  .msg .used { color: #55556a; text-decoration: line-through; } .msg .what { color: var(--dim); }
   .die { display: inline-block; min-width: 1.6em; text-align: center; background: var(--ink); color: #000; padding: 0 2px; margin-right: 2px; }
   .die.drop { background: #4a4a5a; color: #8a8a9a; text-decoration: line-through; }
   #nameForm { display: flex; gap: 6px; margin-top: 6px; }
@@ -211,6 +212,7 @@
       <h2>DEFENDING</h2>
       <ul>
         <li>A red ring means the CPU is throwing at that player. Pick <b>Dodge</b>, <b>Catch</b>, or <b>Block</b> (with a ball).</li>
+        <li>A player holds up to <b>2 balls</b>. Catching with a ball in hand rolls <b>Dexterity</b>. With 2 balls there's no catch, and the <b>Block</b> bonus is halved.</li>
         <li>Catch it and the thrower is out, and your first player out comes back in.</li>
         <li>Knock out all six to win.</li>
       </ul>
@@ -251,8 +253,20 @@
   const roll4d6 = () => { const r = [d6(), d6(), d6(), d6()]; return r.reduce((a, b) => a + b) - Math.min(...r); };
   const mod = (s) => Math.floor((s - 10) / 2);
   const fm = (m) => (m >= 0 ? "+" + m : "" + m);
-  // Dodge and Catch are always open; Block needs a ball to block with (Steve).
-  const legal = (balls) => (balls >= 1 ? ["dodge", "catch", "block"] : ["dodge", "catch"]);
+  // Six stats (Steve 2026-10-29). Dexterity is catching with a ball already in hand;
+  // Speed only matters in the Opening Rush.
+  const STAT_INFO = [
+    ["throw", "THROWING", "THR", "every throw"],
+    ["dodge", "DODGING", "DOD", "dodging a throw"],
+    ["catch", "CATCHING", "CAT", "catching, hands empty"],
+    ["speed", "SPEED", "SPD", "the Opening Rush"],
+    ["dex", "DEXTERITY", "DEX", "catching with a ball in hand"],
+    ["block", "BLOCKING", "BLK", "blocking; half bonus with 2 balls"],
+  ];
+  const STAT_KEYS = STAT_INFO.map(([k]) => k);
+  // A player holds at most two balls. Block needs a ball; with both hands full there's no catch.
+  const MAX_BALLS = 2;
+  const legal = (balls) => (balls >= MAX_BALLS ? ["dodge", "block"] : balls >= 1 ? ["dodge", "catch", "block"] : ["dodge", "catch"]);
   const pick = (xs) => xs[Math.floor(Math.random() * xs.length)];
   // Exact chance that d20 + am beats d20 + dm (ties go to the defender).
   const hitChance = (am, dm) => {
@@ -270,7 +284,14 @@
   };
   const ROW_ORDER = ["front", "center", "back"];
   const throwMod = (a) => mod(a.st.throw) + ROWS[a.slot.row].thr;
-  const defMod = (t, d) => mod(t.st[d]) + ROWS[t.slot.row].def;
+  // Which stat a defense rolls right now: a catch with a ball in hand uses Dexterity.
+  const defStat = (t, d) => (d === "catch" && t.balls >= 1 ? "dex" : d);
+  // A defense's stat bonus; blocking with two balls halves a positive bonus (rounded down).
+  const statBonus = (t, d) => {
+    const m = mod(t.st[defStat(t, d)]);
+    return d === "block" && t.balls >= MAX_BALLS && m > 0 ? Math.floor(m / 2) : m;
+  };
+  const defMod = (t, d) => statBonus(t, d) + ROWS[t.slot.row].def;
   // Net row effect on a throw: + favors the thrower (green line), - favors the defender (red).
   const rangeOf = (a, b) => {
     const net = ROWS[a.slot.row].thr - ROWS[b.slot.row].def;
@@ -428,13 +449,15 @@
   const START = [["front", 0], ["front", 2], ["center", 1], ["center", 2], ["back", 0], ["back", 1]];
   const FEMALE = new Set(["MEGAN", "KATIE", "ROSA", "DANI", "PRIYA", "TESS"]);
   const players = [];
-  const rollStats = () => ({ throw: roll4d6(), catch: roll4d6(), dodge: roll4d6(), block: roll4d6() });
+  const rollStats = () => Object.fromEntries(STAT_KEYS.map((k) => [k, roll4d6()]));
+  // Saves from before the six stats: Speed was Dodge and Dexterity was Catch.
+  const fixStats = (st) => ({ ...st, speed: st.speed ?? st.dodge, dex: st.dex ?? st.catch });
   const shuffle = (xs) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   // A roster entry is what a match is built from: { name, female, look, st }.
   const rollTeam = (names) => names.map((name) => ({ name, female: FEMALE.has(name), look: Math.floor(Math.random() * LOOKS.length), st: rollStats() }));
   function makePlayer(id, sideName, base) {
     const [row, si] = START[id % 6];
-    const p = { id, side: sideName, name: base.name, female: base.female, look: base.look, st: { ...base.st }, out: false, balls: 0, slot: { row, i: si }, home: spotPos(sideName, row, si) };
+    const p = { id, side: sideName, name: base.name, female: base.female, look: base.look, st: fixStats(base.st), out: false, balls: 0, slot: { row, i: si }, home: spotPos(sideName, row, si) };
     p.x = p.home.x; p.y = p.home.y;
     return p;
   }
@@ -648,6 +671,7 @@
       if (!p.out) { g.fillStyle = "rgba(0,0,0,.28)"; g.fillRect(x - 10, y - 1, 20, 3); }
       const sp = sprite(p);
       g.drawImage(sp, Math.round(x - sp.width / 2), Math.round(y - sp.height));
+      if (!p.out && p.balls >= 2) ball(Math.round(x + (p.side === "red" ? -9 : 9)), Math.round(y - 15));
     }
     // move step: open spots on your side, the player being moved
     if (phase === "move") {
@@ -714,16 +738,14 @@
   }
   function matchCard(att, def) {
     const legalDef = legal(def.balls);
-    const row = (k, s) => {
-      const aOn = s === "throw", dOn = s !== "throw" && legalDef.includes(s);
-      const cell = (pl, on) => `<span class="${on ? "on" : "off"}">${pl.st[s]}<b>${fm(mod(pl.st[s]))}</b></span>`;
-      return `<span class="k">${k}</span>${cell(att, aOn)}${cell(def, dOn)}`;
-    };
+    const cell = (pl, s, on, bonus) => `<span class="${on ? "on" : "off"}">${pl.st[s]}<b>${fm(bonus ?? mod(pl.st[s]))}</b></span>`;
+    // Defense rows light up when they're the stat that defense would roll right now.
+    const drow = (k, s, d) => `<span class="k">${k}</span>${cell(att, s, false)}${cell(def, s, legalDef.includes(d) && defStat(def, d) === s, d === "block" ? statBonus(def, "block") : undefined)}`;
     $("card").innerHTML =
       `<div class="vs"><span class="k"></span><span class="${att.side}">${att.name}</span><span class="${def.side}">${def.name}</span>` +
-      row("THR", "throw") +
+      `<span class="k">THR</span>${cell(att, "throw", true)}${cell(def, "throw", false)}` +
       `<span class="k">ROW</span><span class="on">${ROWS[att.slot.row].label.slice(0, 3)}<b>${fm(ROWS[att.slot.row].thr)}</b></span><span class="on">${ROWS[def.slot.row].label.slice(0, 3)}<b>${fm(ROWS[def.slot.row].def)}</b></span>` +
-      row("CAT", "catch") + row("DOD", "dodge") + row("BLK", "block") +
+      drow("DOD", "dodge", "dodge") + drow("CAT", "catch", "catch") + drow("DEX", "dex", "catch") + drow("BLK", "block", "block") +
       `<span class="k">BALL</span><span class="off">${att.balls}</span><span class="off">${def.balls}</span></div>`;
   }
   // One line per legal defense: the thrower's chance to hit.
@@ -734,7 +756,7 @@
 
   function card(p) {
     if (!p) { $("card").innerHTML = `<h3>PLAYER</h3><p style="margin:0;color:var(--dim)">Point at a player to see their stats.</p>`; return; }
-    const rows = [["THR", "throw"], ["CAT", "catch"], ["DOD", "dodge"], ["BLK", "block"]]
+    const rows = STAT_INFO.map(([s, , k]) => [k, s])
       .map(([k, s]) => p.st[s] ? `<span class="k">${k}</span><span>${p.st[s]}</span><span class="m">${fm(mod(p.st[s]))}</span>` : `<span class="k">${k}</span><span>--</span><span class="m"></span>`).join("");
     $("card").innerHTML = `<h3 class="${p.side}">${p.name}${p.out ? " &middot; OUT" : ""}</h3><div class="stats">${rows}</div><p style="margin:4px 0 0;color:var(--dim)">BALLS ${p.balls}</p>`;
   }
@@ -812,7 +834,7 @@
         $("msg").innerHTML = `<p><span class="big">${sel.name} vs ${hover.name}</span>: your hit chance</p><p>ROWS <span style="color:${rangeOf(sel, hover).color}">${rangeText(sel, hover)}</span> &middot; ${oddsLines(sel, hover)}</p><p>Click to pick ${hover.name}.</p>`;
       } else if (hover && hover.side === "red" && hover !== sel) {
         const better = mod(hover.st.throw) - mod(sel.st.throw);
-        $("msg").innerHTML = `<p><span class="big">HAND TO ${hover.name}?</span></p><p>THROW ${hover.st.throw} (${fm(mod(hover.st.throw))}) vs ${sel.name}'s ${fm(mod(sel.st.throw))}: <span class="${better > 0 ? "safe" : better < 0 ? "hit" : "big"}">${better > 0 ? "stronger arm" : better < 0 ? "weaker arm" : "same arm"}</span>.</p><p>${handoff || hover.balls === 0 ? "Click to hand the ball over." : `${hover.name} already has a ball: use HAND OFF to pass anyway.`}</p>`;
+        $("msg").innerHTML = `<p><span class="big">HAND TO ${hover.name}?</span></p><p>THROW ${hover.st.throw} (${fm(mod(hover.st.throw))}) vs ${sel.name}'s ${fm(mod(sel.st.throw))}: <span class="${better > 0 ? "safe" : better < 0 ? "hit" : "big"}">${better > 0 ? "stronger arm" : better < 0 ? "weaker arm" : "same arm"}</span>.</p><p>${hover.balls >= MAX_BALLS ? `${hover.name}'s hands are full (2 balls).` : handoff || hover.balls === 0 ? "Click to hand the ball over." : `${hover.name} already has a ball: use HAND OFF to pass anyway.`}</p>`;
       } else $("msg").innerHTML = message;
     }
   });
@@ -828,7 +850,7 @@
     if (phase === "draft") { const d = at(ev); if (d) { draftSel = d; SFX.select(); draftMessage(); render(); } return; }
     const p = at(ev);
     if (!p || side !== "red") return;
-    if (phase === "pick_target" && p.side === "red" && p !== sel && (handoff || p.balls === 0)) {
+    if (phase === "pick_target" && p.side === "red" && p !== sel && p.balls < MAX_BALLS && (handoff || p.balls === 0)) {
       // Hand-off: any holder can pass one ball to any teammate who's in (no roll).
       // The receiver becomes the selected thrower, ready to throw.
       sel.balls--; p.balls++; SFX.select();
@@ -895,9 +917,15 @@
   function cpuDefense(t) {
     return ["catch", "block", "dodge"].filter((d) => legal(t.balls).includes(d)).reduce((b, d) => (defMod(t, d) > defMod(t, b) ? d : b));
   }
+  // Hand out n balls one at a time to players with a free hand: the team first, then the
+  // other team. A ball nobody can hold (very late in a game) is out of play.
   function give(sideName, n) {
-    const opts = active(sideName);
-    if (opts.length) pick(opts).balls += n;
+    const other = sideName === "red" ? "blue" : "red";
+    for (let k = 0; k < n; k++) {
+      const room = (sn) => active(sn).filter((p) => p.balls < MAX_BALLS);
+      const opts = room(sideName).length ? room(sideName) : room(other);
+      if (opts.length) pick(opts).balls++;
+    }
   }
   // Out players line up along the back of their side, under the banners.
   function benchSlot(p) { const i = queue[p.side].indexOf(p.id); return { x: p.side === "red" ? 22 + i * 22 : 362 - i * 22, y: 94 }; }
@@ -906,8 +934,9 @@
   async function resolve(att, t, def) {
     phase = "busy"; render();
     const sm = mod(att.st.throw), ar_ = ROWS[att.slot.row], am = sm + ar_.thr;
-    const ds = mod(t.st[def]), dr_ = ROWS[t.slot.row], dm = ds + dr_.def;
-    const line = (a, b) => `<p>${att.name} THROWS <span class="roll">${a}</span> ${fm(sm)}${ar_.thr ? ` ${fm(ar_.thr)} ${ar_.label}` : ""} = ${a + am}</p><p>${t.name} ${def.toUpperCase()}S <span class="roll">${b}</span> ${fm(ds)}${dr_.def ? ` ${fm(dr_.def)} ${dr_.label}` : ""} = ${b + dm}</p>`;
+    const ds = statBonus(t, def), dr_ = ROWS[t.slot.row], dm = ds + dr_.def;
+    const dv = def === "catch" && t.balls >= 1 ? "CATCHES (DEX)" : def === "block" && t.balls >= MAX_BALLS ? "BLOCKS (2 BALLS)" : def.toUpperCase() + "S";
+    const line = (a, b) => `<p>${att.name} THROWS <span class="roll">${a}</span> ${fm(sm)}${ar_.thr ? ` ${fm(ar_.thr)} ${ar_.label}` : ""} = ${a + am}</p><p>${t.name} ${dv} <span class="roll">${b}</span> ${fm(ds)}${dr_.def ? ` ${fm(dr_.def)} ${dr_.label}` : ""} = ${b + dm}</p>`;
     await rollShow(line);
     const ar = d20(), dr = d20();
     const hit = ar + am > dr + dm;
@@ -917,7 +946,7 @@
     att.balls--; thrownThisTurn++;
     let out;
     if (def === "catch" && !hit) {
-      const n = att.balls + 1; att.balls = 0; att.out = true; queue[att.side].push(att.id); t.balls += n;
+      const extra = att.balls; att.balls = 0; att.out = true; queue[att.side].push(att.id); t.balls++;
       out = `<p class="safe">CAUGHT! ${att.name} IS OUT.</p>`;
       SFX.catch(); SFX.whistle(0.35); // the thrower is out
       const q = queue[t.side];
@@ -926,6 +955,7 @@
         if (takenBy(t.side, back.slot.row, back.slot.i)) { const sp = openSpots(t.side).find((o) => o.row === back.slot.row) || openSpots(t.side)[0]; back.slot = { row: sp.row, i: sp.i }; back.home = spotPos(t.side, sp.row, sp.i); }
         back.out = false; back.balls = 0; out += `<p class="safe">${back.name} IS BACK IN!</p>`; SFX.revive(1.15);
       }
+      give(t.side, extra);
     } else if (hit) {
       const n = t.balls + 1; t.balls = 0; t.out = true; queue[t.side].push(t.id); give(t.side, n);
       out = `<p class="hit">${def === "catch" ? "FUMBLED!" : "HIT!"} ${t.name} IS OUT.</p>`;
@@ -1004,7 +1034,7 @@
     for (const t of active("red")) {
       const p = hitChance(throwMod(h), bestDef(t));
       // every target can try a catch now; the riskier the catch, the lower the score
-      const score = p - 0.25 * (1 - hitChance(throwMod(h), defMod(t, "catch")));
+      const score = p - (legal(t.balls).includes("catch") ? 0.25 * (1 - hitChance(throwMod(h), defMod(t, "catch"))) : 0);
       if (!best || score > best.score) best = { h, t, p, score };
     }
     return best;
@@ -1019,7 +1049,7 @@
     if (cpuPasses < 2) {
       let pass = null;
       for (const s of shots) for (const m of active("blue")) {
-        if (m === s.h) continue;
+        if (m === s.h || m.balls >= MAX_BALLS) continue;
         const alt = bestShotFrom(m);
         if (alt.score > best.score + 0.08 && (!pass || alt.score > pass.alt.score)) pass = { from: s.h, to: m, alt };
       }
@@ -1041,7 +1071,7 @@
     const att = best.h, t = best.t;
     incoming = { att, tgt: t }; phase = "defend"; SFX.incoming();
     const safe = legal(t.balls).map((d) => `${d.toUpperCase()} <span class="safe">${pct(1 - hitChance(throwMod(att), defMod(t, d)))}</span>`).join(" &middot; ");
-    message = `<p class="big">INCOMING! ${att.name} IS THROWING AT ${t.name}!</p><p>${att.name} throws ${fm(throwMod(att))} (${rangeText(att, t)}). Your chance to stay safe: ${safe}</p><p>${t.balls === 0 ? "No ball, so no Block. " : ""}A good catch puts ${att.name} out and brings a teammate back.</p>`;
+    message = `<p class="big">INCOMING! ${att.name} IS THROWING AT ${t.name}!</p><p>${att.name} throws ${fm(throwMod(att))} (${rangeText(att, t)}). Your chance to stay safe: ${safe}</p><p>${t.balls === 0 ? "No ball, so no Block. " : t.balls >= MAX_BALLS ? "Both hands full, so no Catch. " : "Ball in hand, so a Catch uses Dexterity. "}${t.balls >= MAX_BALLS ? "" : `A good catch puts ${att.name} out and brings a teammate back.`}</p>`;
     render();
   }
   function defend(d) { const { att, tgt: t } = incoming; resolve(att, t, d); }
@@ -1117,11 +1147,11 @@
     if (s <= 5 && s > 0 && s !== lastTick) { lastTick = s; SFX.tick(); }
     if (clock === 0) clockOut();
   }, 100);
-  // Time's up: Red's balls go to Blue, spread to whoever holds the fewest, and Blue's turn starts.
+  // Time's up: Red's balls go to Blue, and Blue's turn starts.
   async function clockOut() {
     const n = team("red").reduce((a, p) => a + p.balls, 0);
     team("red").forEach((p) => (p.balls = 0));
-    for (let k = 0; k < n; k++) active("blue").reduce((a, b) => (b.balls < a.balls ? b : a)).balls++;
+    give("blue", n);
     sel = null; tgt = null; handoff = false; phase = "busy";
     message = `<p class="big hit">THROW CLOCK!</p><p>Time's up. Red forfeits ${n} ball${n === 1 ? "" : "s"} to Blue.</p>`;
     SFX.whistle(); render();
@@ -1144,7 +1174,7 @@
   function newMatch(red, blue) {
     setupMatch(red, blue);
     const head = mode === "campaign" ? `<p class="big">WEST COAST CIRCUIT &middot; GAME ${campGame}</p>` : `<p class="big">OPENING RUSH!</p>`;
-    message = head + `<p>Five balls on the center line. Your 5 best Dodgers race Blue's for them: d20 + Dodge in each lane. Whoever grabs more balls throws first.</p>`;
+    message = head + `<p>Five balls on the center line. Your 5 fastest players race Blue's for them: d20 + Speed in each lane. Whoever grabs more balls throws first.</p>`;
     phase = "rush_ready"; Intro.hide(); placeRushBalls(); render();
   }
   function startQuick() {
@@ -1153,13 +1183,13 @@
     newMatch(rollTeam(names.slice(0, 6)), rollTeam(names.slice(6)));
   }
 
-  // Opening Rush: lane by lane, d20 + Dodge modifier, ties re-roll.
+  // Opening Rush: lane by lane, d20 + Speed modifier, ties re-roll.
   const LANE_Y = [124, 152, 180, 208, 236];
   const lerp = (a, b, k) => a + (b - a) * k;
   const placeRushBalls = () => { rushBalls = LANE_Y.map((y) => ({ x: 192, y: y - 4, held: false })); };
   async function runRush() {
     phase = "rush"; placeRushBalls(); render();
-    const runners = (sn) => { const t = active(sn); const best = new Set([...t].sort((a, b) => b.st.dodge - a.st.dodge).slice(0, 5)); return t.filter((p) => best.has(p)); };
+    const runners = (sn) => { const t = active(sn); const best = new Set([...t].sort((a, b) => b.st.speed - a.st.speed).slice(0, 5)); return t.filter((p) => best.has(p)); };
     const R = runners("red"), B = runners("blue"), all = [...R, ...B];
     SFX.whistle(0.4);
     const run = async (to) => {
@@ -1174,7 +1204,7 @@
     const tally = { red: 0, blue: 0 }, log = [];
     const show = (cur) => `<p class="big">OPENING RUSH &middot; <span class="red">RED ${tally.red}</span> <span class="blue">BLUE ${tally.blue}</span></p>` + log.slice(-3).map((l) => `<p>${l}</p>`).join("") + (cur ? `<p>${cur}</p>` : "");
     for (let j = 0; j < 5; j++) {
-      const a = R[j], b = B[j], ma = mod(a.st.dodge), mb = mod(b.st.dodge);
+      const a = R[j], b = B[j], ma = mod(a.st.speed), mb = mod(b.st.speed);
       let ra, rb;
       do { ra = d20(); rb = d20(); } while (ra + ma === rb + mb);
       for (let i = 0; i < 6; i++) { $("msg").innerHTML = show(`LANE ${j + 1}: ${a.name} <span class="roll">${d20()}</span> vs ${b.name} <span class="roll">${d20()}</span>`); SFX.tick(); await wait(55); }
@@ -1194,16 +1224,19 @@
   }
 
   // ---------- Campaign: draft your team, then play ----------
-  const STATS = [["THROW", "throw"], ["CATCH", "catch"], ["DODGE", "dodge"], ["BLOCK", "block"]];
+  // Draft, D&D style: roll six sets of 4d6 (drop the lowest), then put each total into a stat.
   let draft = null, draftSel = null;
   const drop = (d) => d.indexOf(Math.min(...d));
+  const blankStats = () => Object.fromEntries(STAT_KEYS.map((k) => [k, 0]));
   function startCampaign() {
     const c = store.get(CAMP);
     if (c && c.ready) { const sv = store.get(SAVE.campaign); return sv ? resume(sv) : startCampaignGame(); }
     // A new draft: six unrolled players (three of each body type) to name, roll and style.
     draft = c && c.team ? c : { team: Array.from({ length: 6 }, (_, k) => ({
-      name: "PLAYER " + (k + 1), female: k % 2 === 0, look: Math.floor(Math.random() * LOOKS.length), st: { throw: 0, catch: 0, dodge: 0, block: 0 }, dice: null, rerolled: false,
+      name: "PLAYER " + (k + 1), female: k % 2 === 0, look: Math.floor(Math.random() * LOOKS.length),
     })), w: 0, l: 0, game: 0, ready: false };
+    // Drafts saved before the six stats start their rolls over.
+    draft.team.forEach((e) => { if (!Array.isArray(e.rolls)) Object.assign(e, { st: blankStats(), rolls: null, rerolled: false }); });
     mode = "campaign";
     setupMatch(draft.team, []);
     draftSel = players[0];
@@ -1211,26 +1244,41 @@
   }
   const saveDraft = () => store.set(CAMP, draft);
   const entryOf = (p) => draft.team[p.id];
+  const placed = (e) => STAT_KEYS.filter((k) => e.st[k]).length; // rolls go in highest first
+  const done = (e) => e.rolls && placed(e) === STAT_KEYS.length;
+  const dieRow = (d) => d.map((v, i) => `<span class="die${i === drop(d) ? " drop" : ""}">${v}</span>`).join("");
   function draftMessage() {
     const e = entryOf(draftSel);
-    const lines = e.dice ? STATS.map(([lbl, k]) => {
-      const d = e.dice[k], x = drop(d);
-      return `<p>${lbl.padEnd(6, "\u00a0")} ${d.map((v, i) => `<span class="die${i === x ? " drop" : ""}">${v}</span>`).join("")} = <span class="big">${e.st[k]}</span> (${fm(mod(e.st[k]))})</p>`;
-    }).join("") : `<p>Roll 4d6 for each stat. The lowest die is dropped.</p>`;
-    message = `<p class="big">${e.name}</p>` + lines;
+    if (!e.rolls) { message = `<p class="big">${e.name}</p><p>Roll six sets of 4d6. The lowest die in each set is dropped. Then you choose which stat gets each total.</p>`; return; }
+    const n = placed(e);
+    const pool = e.rolls.map((r, i) => `<span class="${i < n ? "used" : i === n ? "big" : ""}">${r.total}</span>`).join(" ");
+    const lines = STAT_INFO.map(([k, lbl, , what]) => `<p>${lbl.padEnd(9, "\u00a0")} ${e.st[k] ? `<span class="big">${e.st[k]}</span> (${fm(mod(e.st[k]))})` : "--"} <span class="what">${what}</span></p>`).join("");
+    message = `<p class="big">${e.name}</p><p>ROLLS ${pool}</p>` +
+      (n < STAT_KEYS.length ? `<p>${dieRow(e.rolls[n].dice)} = <span class="big">${e.rolls[n].total}</span>. Pick a stat for it.</p>` : "") + lines;
   }
   async function rollDraft() {
     const e = entryOf(draftSel);
-    if (e.dice) e.rerolled = true;
+    if (e.rolls) e.rerolled = true;
     phase = "busy"; render();
     for (let i = 0; i < 6; i++) {
-      $("msg").innerHTML = `<p class="big">${e.name} ROLLS...</p>` + STATS.map(([lbl]) => `<p>${lbl.padEnd(6, "\u00a0")} ${[d6(), d6(), d6(), d6()].map((v) => `<span class="die">${v}</span>`).join("")}</p>`).join("");
+      $("msg").innerHTML = `<p class="big">${e.name} ROLLS...</p>` + STAT_KEYS.map(() => `<p>${[d6(), d6(), d6(), d6()].map((v) => `<span class="die">${v}</span>`).join("")}</p>`).join("");
       SFX.tick(); await wait(70);
     }
-    e.dice = {}; STATS.forEach(([, k]) => { const d = [d6(), d6(), d6(), d6()]; e.dice[k] = d; e.st[k] = d.reduce((a, b) => a + b) - Math.min(...d); });
-    Object.assign(draftSel.st, e.st);
+    e.rolls = STAT_KEYS.map(() => { const d = [d6(), d6(), d6(), d6()]; return { dice: d, total: d.reduce((a, b) => a + b) - Math.min(...d) }; })
+      .sort((a, b) => b.total - a.total);
+    e.st = blankStats(); draftSel.st = { ...e.st };
     saveDraft(); SFX.select();
     phase = "draft"; draftMessage(); render();
+  }
+  function assignDraft(k) {
+    const e = entryOf(draftSel);
+    e.st[k] = e.rolls[placed(e)].total; draftSel.st = { ...e.st };
+    saveDraft(); SFX.select(); draftMessage(); render();
+  }
+  function undoAssign() {
+    const e = entryOf(draftSel);
+    e.st = blankStats(); draftSel.st = { ...e.st };
+    saveDraft(); draftMessage(); render();
   }
   function renameDraft() {
     const e = entryOf(draftSel);
@@ -1252,15 +1300,29 @@
     draftSel.look = e.look; draftSel.female = e.female; sprites.clear(); saveDraft(); render();
   }
   function draftMenu() {
-    const e = entryOf(draftSel), rolled = draft.team.filter((x) => x.dice).length;
-    menu(`DRAFT ${rolled}/6 ROLLED`, [
-      e.dice ? { label: "RE-ROLL", right: e.rerolled ? "used" : "once", disabled: e.rerolled, go: rollDraft } : { label: "ROLL DICE", right: "4d6", go: rollDraft },
+    const e = entryOf(draftSel), ready = draft.team.filter(done).length;
+    const reroll = { label: "RE-ROLL", right: e.rerolled ? "used" : "once", disabled: e.rerolled, go: rollDraft };
+    if (!e.rolls) return menu(`DRAFT ${ready}/6 READY`, [
+      { label: "ROLL DICE", right: "6 x 4d6", go: rollDraft },
       { label: "NAME", go: renameDraft },
       { label: "LOOK", right: "change", go: lookDraft },
-      { label: "NEXT PLAYER", go: () => { draftSel = players[(draftSel.id + 1) % 6]; draftMessage(); render(); } },
-      { label: "START SEASON", right: rolled < 6 ? "roll all 6" : "go!", disabled: rolled < 6, go: () => { draft.ready = true; saveDraft(); startCampaignGame(); } },
+      { label: "NEXT PLAYER", go: nextDraft },
+    ]);
+    if (!done(e)) return menu(`PUT ${e.rolls[placed(e)].total} IN...`, [
+      ...STAT_INFO.filter(([k]) => !e.st[k]).map(([k, lbl]) => ({ label: lbl, go: () => assignDraft(k) })),
+      { label: "START OVER", right: "", disabled: placed(e) === 0, go: undoAssign },
+      reroll,
+    ]);
+    menu(`DRAFT ${ready}/6 READY`, [
+      { label: "NAME", go: renameDraft },
+      { label: "LOOK", right: "change", go: lookDraft },
+      { label: "REASSIGN", right: "stats", go: undoAssign },
+      reroll,
+      { label: "NEXT PLAYER", go: nextDraft },
+      { label: "START SEASON", right: ready < 6 ? "finish all 6" : "go!", disabled: ready < 6, go: () => { draft.ready = true; saveDraft(); startCampaignGame(); } },
     ]);
   }
+  function nextDraft() { draftSel = players[(draftSel.id + 1) % 6]; draftMessage(); render(); }
   function startCampaignGame() {
     const c = store.get(CAMP);
     if (!c) return Intro.menu();
