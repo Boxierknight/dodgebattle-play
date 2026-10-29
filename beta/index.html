@@ -13,6 +13,8 @@
     --dim: #a8a8b8;
     --red: #d82800;       /* NES red */
     --blue: #3c7cfc;      /* NES light blue (reads on black) */
+    --t1: #ff5030; --t1b: #d82800; --t1a: rgba(216,40,0,.22);   /* your team (set per match) */
+    --t2: #3c7cfc; --t2b: #2458e8; --t2a: rgba(60,124,252,.22); /* the other team */
     --gold: #f8b800;      /* NES yellow */
     --green: #58d854;     /* NES green */
     --pixel: "Press Start 2P", "Courier New", monospace;
@@ -36,23 +38,27 @@
   .tag { font-family: var(--pixel); font-size: 9px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; }
 
   .screen { background: var(--tv); border: 4px solid #000; box-shadow: 0 0 0 3px #3a3448, 0 14px 30px rgba(0,0,0,.45); }
-  .scorebar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 8px 10px; font-family: var(--pixel); font-size: clamp(8px, 1.4vw, 11px); border-bottom: 3px solid #000; }
+  .scorebar { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 6px 8px; padding: 8px 10px; font-family: var(--pixel); font-size: clamp(8px, 1.4vw, 11px); border-bottom: 3px solid #000; }
   .side { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; }
   .side.blue { justify-content: flex-end; }
   .pips { display: flex; gap: 3px; }
   .pip { width: 8px; height: 10px; background: currentColor; }
   .pip.out { background: transparent; box-shadow: inset 0 0 0 2px currentColor; opacity: .5; }
-  .red { color: var(--red); } .blue { color: var(--blue); }
+  .red { color: var(--t1); } .blue { color: var(--t2); }
   .turnlabel { color: var(--dim); text-align: center; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
   .clock { color: var(--ink); min-width: 4ch; }
   .clock.low { color: #ff5030; animation: blink 1s steps(1) infinite; }
   .turnchip { padding: 4px 8px; color: #fff; border: 2px solid #000; box-shadow: 0 0 0 2px currentColor; animation: chip 1s steps(1) infinite; }
-  .turnchip.red { background: var(--red); color: #fff; }
-  .turnchip.blue { background: #0058f8; color: #fff; }
+  .turnchip.red { background: var(--t1b); color: #fff; }
+  .turnchip.blue { background: var(--t2b); color: #fff; }
   @keyframes chip { 50% { filter: brightness(1.35); } }
   .side { padding: 4px 8px; border: 2px solid transparent; }
-  .side.on.red { border-color: var(--red); background: rgba(216,40,0,.22); }
-  .side.on.blue { border-color: var(--blue); background: rgba(60,124,252,.22); }
+  .side.on.red { border-color: var(--t1); background: var(--t1a); }
+  .side.on.blue { border-color: var(--t2); background: var(--t2a); }
+  .side .tname { overflow: hidden; text-overflow: ellipsis; }
+  .scorebar .turnlabel { grid-column: 1 / -1; grid-row: 2; justify-content: center; }
+  .side.blue { justify-content: flex-end; }
+  .bico { display: inline-block; width: .9em; height: .9em; margin-right: 3px; vertical-align: -1px; background: #e0601c; border-radius: 50%; box-shadow: inset -2px -2px 0 #a8400c; }
   .side .arrow { visibility: hidden; color: var(--gold); }
   .side.on .arrow { visibility: visible; animation: chip .6s steps(1) infinite; }
   #banner { position: absolute; left: 0; right: 0; top: 42%; text-align: center; font-family: var(--pixel); font-size: calc(var(--u) * 22px);
@@ -114,7 +120,10 @@
     /* Scoreboard on phones: Red and Blue share the top line, turn status gets its own line. */
     .scorebar { grid-template-columns: 1fr 1fr; row-gap: 6px; padding: 6px 8px; }
     .turnlabel { grid-column: 1 / -1; grid-row: 2; justify-content: center; }
-    .side { gap: 5px; }
+    .side { gap: 3px 5px; flex-wrap: wrap; }
+    .side .tname { flex-basis: 100%; }
+    .side.blue .tname { text-align: right; }
+    .side .arrow { display: none; }
     .pips { gap: 2px; }
     .pip { width: 5px; height: 8px; }
     .msg { grid-column: 1 / -1; min-height: 0; }
@@ -146,7 +155,7 @@
   .l2b { margin-top: 10px; font-size: 9px; color: var(--dim); letter-spacing: 4px; }
   .felixmark { position: relative; width: clamp(130px, 34vw, 200px); margin: 0 auto 16px; }
   .rooster { display: block; width: 100%; }
-  .glasses { position: absolute; left: 4%; width: 74%; top: 44%; }
+  .glasses { position: absolute; left: 2%; width: 66%; top: 74%; }
   .l3a { font-size: clamp(9px, 2.6vw, 13px); color: var(--dim); letter-spacing: 3px; }
   .l3b { margin-top: 10px; font-size: clamp(14px, 4.6vw, 26px); color: #fcfcfc; text-shadow: 3px 3px 0 #303048; letter-spacing: 2px; }
   .splash { width: min(560px, 100%); display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
@@ -157,7 +166,7 @@
   #mainMenu { min-height: 0; text-align: left; background: var(--tv); }
 
   /* Opening Rush and campaign draft */
-  .msg .red { color: #ff5030; } .msg .blue { color: var(--blue); }
+  .msg .red { color: var(--t1); } .msg .blue { color: var(--t2); }
   .msg .used { color: #55556a; text-decoration: line-through; } .msg .what { color: var(--dim); }
   .die { display: inline-block; min-width: 1.6em; text-align: center; background: var(--ink); color: #000; padding: 0 2px; margin-right: 2px; }
   .die.drop { background: #4a4a5a; color: #8a8a9a; text-decoration: line-through; }
@@ -172,15 +181,15 @@
 <div class="wrap">
   <header>
     <h1>DODGE<span class="sub">: The Tactical Dodgeball Game</span></h1>
-    <span class="tag">6 v 6 &middot; d20 rules &middot; you are red</span>
+    <span class="tag">6 v 6 &middot; d20 rules &middot; you play the left side</span>
     <span class="hdrbtns"><button type="button" id="menuBtn" class="soundbtn">MENU</button><button type="button" id="sound" class="soundbtn" aria-pressed="true">SOUND: ON</button></span>
   </header>
 
   <div class="screen" aria-label="Game screen">
     <div class="scorebar">
-      <div class="side red" id="redSide"><span class="arrow">&#9654;</span><span>RED</span><span class="pips" id="redPips"></span><span id="redBalls"></span></div>
+      <div class="side red" id="redSide"><span class="arrow">&#9654;</span><span class="tname" id="redName">RED</span><span class="pips" id="redPips"></span><span id="redBalls"></span></div>
       <div class="turnlabel" id="turnLabel"></div>
-      <div class="side blue" id="blueSide"><span id="blueBalls"></span><span class="pips" id="bluePips"></span><span>BLUE</span><span class="arrow">&#9664;</span></div>
+      <div class="side blue" id="blueSide"><span id="blueBalls"></span><span class="pips" id="bluePips"></span><span class="tname" id="blueName">BLUE</span><span class="arrow">&#9664;</span></div>
     </div>
     <div class="court" id="court">
       <canvas id="c" width="384" height="264" aria-label="Dodgeball court"></canvas>
@@ -198,10 +207,10 @@
     <div>
       <h2>YOUR TURN</h2>
       <ul>
-        <li>Click a <b>red</b> player holding a ball, then a blue player, then <b>THROW!</b></li>
+        <li>Click one of <b>your</b> players holding a ball (left side), then an opponent, then <b>THROW!</b></li>
         <li>Or click a teammate to <b>hand off</b> the ball to a better arm.</li>
-        <li><b>END TURN</b>, then choose whether to <b>move players</b> into open spots. <b>CONFIRM</b> hands it to Blue.</li>
-        <li><b>Throw clock:</b> you get 30 seconds a turn to pick your throws. If it runs out, every ball you hold goes to Blue.</li>
+        <li><b>END TURN</b>, then choose whether to <b>move players</b> into open spots. <b>CONFIRM</b> hands it to the other team.</li>
+        <li><b>Throw clock:</b> you get 30 seconds a turn to pick your throws. If it runs out, every ball you hold goes to the other team.</li>
       </ul>
     </div>
     <div>
@@ -235,7 +244,7 @@
     <div class="ph">PLACEHOLDER LOGO</div>
   </div>
   <div class="scene" id="sc3" hidden>
-    <div class="felixmark"><svg class="rooster" viewBox="0 0 24 22" shape-rendering="crispEdges" aria-hidden="true"><path fill="#5c1020" d="M14 2h6v1H14zM5 3h1v1H5zM13 3h4v1H13zM18 3h2v1H18zM4 4h2v1H4zM13 4h7v1H13zM3 5h3v1H3zM14 5h4v1H14zM2 6h4v1H2zM14 6h3v1H14zM2 7h4v1H2zM13 7h4v1H13zM1 8h5v1H1zM12 8h5v1H12zM1 9h6v1H1zM11 9h6v1H11zM1 10h7v1H1zM9 10h8v1H9zM1 11h16v1H1zM2 12h15v1H2zM2 13h15v1H2zM3 14h13v1H3zM4 15h11v1H4zM5 16h9v1H5zM7 17h5v1H7z"/><path fill="#b8182e" d="M15 0h1v1H15zM17 0h1v1H17zM14 1h5v1H14zM18 5h1v1H18zM17 6h2v1H17zM17 7h1v1H17z"/><path fill="#a87800" d="M20 3h2v1H20zM20 4h1v1H20zM8 18h1v1H8zM11 18h1v1H11zM8 19h1v1H8zM11 19h1v1H11zM8 20h1v1H8zM11 20h1v1H11zM7 21h2v1H7zM10 21h2v1H10z"/><path fill="#0a0a12" d="M17 3h1v1H17z"/></svg><svg class="glasses" viewBox="0 0 28 11" shape-rendering="crispEdges" aria-hidden="true"><path fill="#fcfcfc" d="M0 1h2v1H0zM26 1h2v1h-2zM1 2h11v7H2V8H1zM16 2h11v6h-1v1H16zM12 3h4v2h-4z"/><path fill="#202038" d="M3 3h8v5H3zM17 3h8v5h-8z"/><path fill="#5cc8f8" d="M4 4h2v1H4zM4 5h1v1H4zM18 4h2v1h-2zM18 5h1v1h-1z"/></svg></div>
+    <div class="felixmark"><svg class="rooster" viewBox="0 0 32 33" shape-rendering="crispEdges" aria-hidden="true"><path fill="#0a0a12" d="M11 0h1v1H11zM18 0h1v1H18zM10 1h1v1H10zM12 1h1v1H12zM17 1h1v1H17zM19 1h1v1H19zM24 1h1v1H24zM5 2h1v1H5zM10 2h1v1H10zM13 2h1v1H13zM16 2h1v1H16zM19 2h1v1H19zM23 2h1v1H23zM25 2h1v1H25zM4 3h1v1H4zM6 3h1v1H6zM10 3h1v1H10zM13 3h1v1H13zM15 3h1v1H15zM19 3h1v1H19zM22 3h1v1H22zM25 3h1v1H25zM4 4h1v1H4zM7 4h1v1H7zM10 4h1v1H10zM14 4h2v1H14zM19 4h1v1H19zM21 4h1v1H21zM24 4h1v1H24zM5 5h1v1H5zM8 5h1v1H8zM10 5h1v1H10zM19 5h2v1H19zM24 5h1v1H24zM6 6h1v1H6zM9 6h2v1H9zM23 6h1v1H23zM7 7h1v1H7zM22 7h1v1H22zM6 8h3v1H6zM22 8h1v1H22zM5 9h1v1H5zM9 9h3v1H9zM23 9h1v1H23zM4 10h1v1H4zM11 10h1v1H11zM24 10h1v1H24zM4 11h1v1H4zM10 11h1v1H10zM14 11h4v1H14zM24 11h1v1H24zM3 12h1v1H3zM10 12h1v1H10zM18 12h2v1H18zM25 12h1v1H25zM3 13h1v1H3zM9 13h1v1H9zM19 13h1v1H19zM26 13h1v1H26zM2 14h1v1H2zM9 14h1v1H9zM18 14h1v1H18zM27 14h1v1H27zM2 15h1v1H2zM8 15h1v1H8zM18 15h1v1H18zM28 15h1v1H28zM2 16h1v1H2zM8 16h1v1H8zM19 16h2v1H19zM22 16h1v1H22zM25 16h1v1H25zM28 16h1v1H28zM1 17h1v1H1zM8 17h1v1H8zM20 17h2v1H20zM27 17h2v1H27zM1 18h1v1H1zM8 18h1v1H8zM21 18h1v1H21zM1 19h1v1H1zM8 19h1v1H8zM21 19h1v1H21zM1 20h1v1H1zM8 20h1v1H8zM21 20h1v1H21zM1 21h1v1H1zM9 21h1v1H9zM20 21h1v1H20zM1 22h1v1H1zM10 22h1v1H10zM19 22h1v1H19zM1 23h1v1H1zM11 23h2v1H11zM18 23h1v1H18zM2 24h1v1H2zM13 24h5v1H13zM2 25h1v1H2zM16 25h1v1H16zM3 26h1v1H3zM17 26h1v1H17zM3 27h1v1H3zM18 27h1v1H18zM4 28h1v1H4zM18 28h1v1H18zM5 29h2v1H5zM19 29h1v1H19zM7 30h3v1H7zM19 30h1v1H19zM10 31h4v1H10zM19 31h1v1H19zM14 32h5v1H14z"/><path fill="#d81818" d="M11 1h1v1H11zM18 1h1v1H18zM11 2h2v1H11zM17 2h2v1H17zM24 2h1v1H24zM5 3h1v1H5zM11 3h2v1H11zM16 3h3v1H16zM23 3h2v1H23zM5 4h2v1H5zM11 4h1v1H11zM13 4h1v1H13zM16 4h1v1H16zM18 4h1v1H18zM22 4h2v1H22zM6 5h2v1H6zM11 5h1v1H11zM13 5h4v1H13zM18 5h1v1H18zM21 5h3v1H21zM7 6h2v1H7zM11 6h2v1H11zM14 6h3v1H14zM18 6h5v1H18zM8 7h14v1H8zM9 8h13v1H9zM12 9h11v1H12zM12 10h12v1H12zM11 11h2v1H11zM18 11h6v1H18zM11 12h5v1H11zM20 12h5v1H20zM10 13h9v1H10zM10 14h8v1H10zM9 15h9v1H9zM9 16h10v1H9zM9 17h11v1H9zM9 18h12v1H9zM9 19h2v1H9zM12 19h9v1H12zM9 20h2v1H9zM13 20h8v1H13zM10 21h2v1H10zM13 21h7v1H13zM11 22h8v1H11zM13 23h5v1H13z"/><path fill="#9c0c14" d="M12 4h1v1H12zM17 4h1v1H17zM12 5h1v1H12zM17 5h1v1H17zM13 6h1v1H13zM17 6h1v1H17zM13 11h1v1H13zM11 19h1v1H11zM11 20h2v1H11zM12 21h1v1H12z"/><path fill="#6a6670" d="M6 9h3v1H6zM5 10h6v1H5zM5 11h5v1H5zM4 12h6v1H4zM4 13h5v1H4zM3 14h6v1H3zM3 15h5v1H3zM3 16h5v1H3zM2 17h2v1H2zM5 17h3v1H5zM2 18h2v1H2zM5 18h3v1H5zM2 19h3v1H2zM6 19h2v1H6zM2 20h3v1H2zM6 20h2v1H6zM2 21h4v1H2zM7 21h2v1H7zM2 22h4v1H2zM7 22h3v1H7zM2 23h5v1H2zM8 23h3v1H8zM3 24h5v1H3zM9 24h4v1H9zM3 25h6v1H3zM10 25h6v1H10zM4 26h6v1H4zM11 26h6v1H11zM4 27h8v1H4zM13 27h5v1H13zM5 28h13v1H5zM7 29h12v1H7zM10 30h9v1H10zM14 31h5v1H14z"/><path fill="#45424c" d="M4 17h1v1H4zM4 18h1v1H4zM5 19h1v1H5zM5 20h1v1H5zM6 21h1v1H6zM6 22h1v1H6zM7 23h1v1H7zM8 24h1v1H8zM9 25h1v1H9zM10 26h1v1H10zM12 27h1v1H12z"/><path fill="#f8c040" d="M20 13h6v1H20zM19 14h8v1H19zM19 15h3v1H19zM26 15h2v1H26zM27 16h1v1H27z"/><path fill="#c88a10" d="M22 15h4v1H22zM21 16h1v1H21zM26 16h1v1H26z"/><path fill="#fcfcfc" d="M16 12h2v1H16z"/></svg><svg class="glasses" viewBox="0 0 28 11" shape-rendering="crispEdges" aria-hidden="true"><path fill="#fcfcfc" d="M0 1h2v1H0zM26 1h2v1h-2zM1 2h11v7H2V8H1zM16 2h11v6h-1v1H16zM12 3h4v2h-4z"/><path fill="#202038" d="M3 3h8v5H3zM17 3h8v5h-8z"/><path fill="#5cc8f8" d="M4 4h2v1H4zM4 5h1v1H4zM18 4h2v1h-2zM18 5h1v1h-1z"/></svg></div>
     <div class="l3a">A</div><div class="l3b">FELIX PERRONE</div><div class="l3a" style="margin-top:10px">PRODUCT</div>
   </div>
   <div class="scene splash" id="sc4" hidden>
@@ -379,7 +388,23 @@
 
   // ---------- Sprites: Steve's original art, recolored per player ----------
   const ART = {"male_idle": "data:image/png;base64,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", "male_ball": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAoCAYAAADt5povAAAAAXNSR0IArs4c6QAABX9JREFUWIWdWM9rG0cU/tZkhLxCK62tSopsJBvZITiFBDXQQKG44AQSX1yIGshF+GKSBuKL6J/QQ8nFhabgBIIuhiJoRKltcHIwgZKEJjo0OATLpl43cm3ZjX6xW6E5bA/LTGYl7SbNB8bjmdn3zXvzfo0lvCeSw36TUgpCCCilaFMPfLIJ3ZAwGJLRMnRQSrF70JKiA4q5/6Yh9ZLTc1LEqRNRs1mvwR8I4pxPd927fghQSuEPBNEydGy/bnbJdyVkWp2PkXedqyd5L8JjTh9EBxST0nYX2fqh9XvyI2eyB3vUcc1Rw3jEawIAIcRGwAjZfXYSP9iz7vd/3yG7O0aoGxJ8soknua+hyAQNg+KTqwtoUw88pA1CCHRDgrZ8ExPphZ7mBFxMKoJSCg8BnuTmocjWARSZ4PnSPB83DMrXKHU2aZ/TAtOOhYCIVOYuxmduQZEJJxPX3OBIyMgYzscI1+D+lQAAYCK9gIn0AidOZe6iWa99GCEAlApZlApZeEjbNj967Q62i2uglGJ1Nsbnm/Uatotr8AeCjjLfeYfaSp6PmemYOEIIEpfSfI2ZvmU4JwhXL71/JYBKsYpwSuWCRXJm4k64eamjSTc296Uvf6ojnFI5gYhOZ9FW8twabl76zlwaj3jNNvXg0Y3jSFxKu2rGkMrcxcbm/oclb0b6cC4BAFAnZzjh+Mwt277nS/M4l7ntaE5XQrEcMeiGxDVlEDV208yRMDnsNwHgZd7KIonp7/HoxnEAwNSixuPTHwhi/ceMLc0RQuCVfa6ktoV4xGuWClnbhon0AgAgd7of4ZSKi/f2bGNmhdzpflx91kCpkH0/L+1FxjSllHJvXZ2N4fLjFh+zuw2nVB7wuuFsVQmwat+L/HUA4PehreS5CXVDgoe0uXDAMi8Dm59a1PBwLgF1cgaT13M9TXvM0uwmv/yGQTF5PYdmvYalswrXrFKscoEiiQjmYIpMHLNNn5j32OUzMkbEsHRWwec//O1oLgZtJQ9KKaIDihmPePkPAPQ16zWeIRSZoFTIdpUjEZ2JXIRuSKgUq0hcSqNUyMInm3g4l0CpkMXzpXmcOhE1udOIqUpbvomrzxo9hbodxk1jwKomfbsHLenivT1oK3kbaamQ5aSiWQdDMv+7Uqzaxj7ZRDil8ry6OhvD1KLGEwUhpDt5i14qanNv719+SgbRocIpFZRSTC1qtnsmhHBlACHwk8N+c3U2Zqtv5zK3kTvdzz8WzSxmnH+ODPhkE8DbXlTs+lhy2H7dlGxxwtIaC9zphCVkNtaPy49b8JA2hkbG+P5G9QiKGuLjZr3m2iLaNOxEdEAx2al1Q8LoeNy2zggA4OMzZwEA1VoN5Z0trk0vuY4F2EPa8Mo+G1mjegQAUIPW24EQAn8gCO3PLVRrFjlL4E5wbaJahg6fbKK8s4VKWYOihtCoHqH4+x8ArMrerNf4fHlnCy/z866dm2sTJToRYJWqwZCMwZCMjc19iTlGpazhZX6eh5Tl3a33J+z0WAYPaWNj861D7B60JNZsifDJJvCmtxJdJo1HvKZYXhoGhbaSx0R6AbsHLUcnY7EmtpW90CUgOqCYo+NxVMoaf90CcHxgskfP0MgYyjtbfN7pcDYNk8N+kxG8erqMv178CkUNWR21g5u3DB1DI2NQg0FsF9ewXVxDm3p44LtqGI94zaGRMfzy7TQy3/3G48rpxPGI12TlTVFDUINBVGs1PPr5Ns588RUAdBXhLkL2BAuenObzJz+1xp1aJof9ZngowYkAK0Zz33zGv0+mLtgO2+Wl1fUCRq/dsc29erqMZOpCl3kAIHeBAjiEOjmD6noBwKHtsJ0h0qUh62HYv0RYwe2Vrth+AHyvmKxZyy9q+B+Mxezz9jGujQAAAABJRU5ErkJggg==", "female_idle": "data:image/png;base64,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", "female_ball": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABsAAAApCAYAAADEZlLzAAAAAXNSR0IArs4c6QAABRxJREFUWIWdmN9rU2cYxz/vOXFJPKHgTUhCbxpGoVjRbdZJyYpVdiP21l2I+xMyerEVBa+E1eqF2P9gOhl4m04ZMjNqKZ21oJhSUGkYDBOyC2EYYzTnfXdx+r49J+ecVPZASPOe93m+z4/v87zvqeAjpTA8pACklEilsIQAQCoFgCUEzVdvxCAbiSijUkosy+LV3/8KgFwho74fa+/p0LxyVMK2jV6/BBYLw0MBowubaaRSXBh/B8B4WlHrDHTe6EVFacUBzddSAAGgfoPXtpzQOsDcwQ7ZvBN6YMCklAFDCdtm7mAnAKSjmq+leHnjBD3XDTgGMDPyCQAJ2w45sQumgo5oQ/1A17ackJEL4+8MYKX+nvG0MvqRYH4//HWqdUSgTlJKthenA0YWNtNsL04HIowSA6bE3oW/upO+bqdNsVzFEoLzj/fz8sYJALYXp03kVoS9EPW1PGntpvVIVnC1luLF4rQBSdg2z378wuwplqumTufW00CYOAbMXzOtdK/lEeVIts2LxWlGZ5cDKSyWq+b31sIxAMbmHtFqtCPTZNLoZ0/PdbnXShtDV2spiuVqoOgaqFiuUixXGZt7RDLtpTCK9gGwfvb4I7g50TG/ux2vF7VrlhAmqijHI8Hi5Pn1qZ0aeJJMO3Q7XloDhnyEiKI9+MZVrpBRuomftBS//bPLMr9oIughsHllwqSvWK4CxNZMgJdj3VeahfdaaeOxBtUp1Mb7fwOMzi7HDmIrV8jEArUabSGV4tPv/jBG/UDJtMOhixvmOcSn0ERWGB5SPdcNnFH+VOTzjlJCIJUKTQ9/hINob8DiJFfIKN1/qzOS0pKNVIrVGRnaO1mxDJBfz3+oxk6QXCGj/AQplquszriUlmxyX58yaex22ozNPQro3Tr6NmDr3LqjWo22iKR+Pu+oKCb6gf2k0JFm8466dfQtI7lk4HN7wjvfIiMTMU0JsHLGZeruPkZnl9F1XjnjPbs90WEklwzsrze7jOSSJGw7+g7y/PqUSRNA8/7v2L7+/+nzNwGjkxWLhG3z7Xqam32AI7kk9WYXKe3wBFGuG6iHNvbQRwptrN7sAt54Wj79AU16ve7/WyoVjkwrdDttXq+sMXV3X8B73UerM9KA6jUb77AdT6sAoD58Q2D+GXegdJxnJa9/ErbN8+tT5tno7DLLpz/sOOOBPZyRfFVJ8cPOkNAyX0vRarRFCEwoxeuVNQ6Ujps1/xT317Le7NJzvf4qLWXU5pUJHrLGZCUVyILuvxBYo9EWkxVHrbLmW91ngPS3lJJz62njSPPVG3Ho4obqubs06J8msRNETwG/hzrKnuua3pqsWJGGoyR2QzbvKK+HXC7/6RX70pfJuO2BcRUnAw/PlTOuYdWR7K6derNLpf4+AKQd/N9gAD//5X3rmy5gTu56s8tkxcISgu3FabYWjpm3nSiJHcTa44Sdoee6XGK3qTUpzj/eDyg2r0zs5fNgMEsIY+TQxQ1KS8K8l0nlcm3LQSo3cNnxD+coiSxo//GiRR8n/eeW/+Y16AANLWoWAqELT7FcDRnKFTIKwLK88vdc9+PAsnnvzVEr+UdU3EUmm3eU/+Qe1AJmsTA8pDbu/8Lhk2cBb9Dq4QvE3pii6L7n9VvfA58+uANAack298M4oH55+uAOTx/c2bPfjJeNrV/N52OUtE6ukFHZvKMKw0OxupE10NEBHD55duAY6t+v5bNT34Re4mOpD5i+GvT/jdg3lgi9/wAn7ctOD0vS9gAAAABJRU5ErkJggg==", "referee": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAfCAYAAADnTu3OAAAAAXNSR0IArs4c6QAAAmhJREFUSInVlT9oFEEUxn+7e4tFEkImtyfhIKQOpEhODEJICgmYSsRCjJViJ4joEQWxP4MJRrC1VFIIWqU4UvgHg2CSQrAOwpE/6ooYCzl3x+Ju1tmd3c1FK79q5+37vn2z75s3FhkQwpG2Y0frMAgptNe/ghDfD6w0Xmqw5Lmy8fR81rcAKJ99wt6npsE3AkI4cvfZhVyxxps9AMbm60alhTxSuTLTWhxZjwnlIVUwJgbwswJAuaLlrK90LggwMFsFWs3YXV4E4Oi569H7jbnpA6tFCEdu1U5JIRzZrC/JZn1JCuHIoufKoucacZXbUYU6th/fMyrMQqrg7vJiJlnFs7Zs2KbkubLRrigPjfUVji+sGl7MNrYmevfBQwBuXr0Sxcqz1c6MrSCEIzfmpuP2aVeWZuhUwaLnRh0LgxAw/9WxhVXCIESd8zBxrmOCQjjy44fXAIyemOHLt+8AJIdEf28Pm2stYw8OT8QEY13WiQD9vT0APLp/C4BL12ppu4zBVltVBh0cnjCSRsenGB2fMuJDI5PYjh3jF4Rw5LbW0U7Mq6AfyzZX2jn5f4X/QND3A6vcHlX/gvJsFd8PrAJAyJ/5l7TOQRhIFFMQwpHvbpyMAmPz9UMJJrjSGF+2YzM0Mtl6pnVl6uuwnadiSVhFz5X62dSJuoD+rENx1dk3JkbRc2Vfd1cs9nX/BwBp8c+JERbrQJqYqiINfd1dsQllCGYR85DJKXmu3N9Zk/s7a/LV81p00+kV6LefnlvSciyVuPX+ZewDm29fAHDm8p3oP+nzMpl7+uJtfD+wIsG8bSnBZF7a5P4N1Ukje0MDixsAAAAASUVORK5CYII="};
-  const TEAM = { red: { base: [216, 40, 0], shade: [150, 24, 0] }, blue: { base: [36, 92, 232], shade: [20, 56, 160] } };
+  // Team colors: jersey base and shade, a bright UI tone that reads on black, and a group so
+  // two teams in one match never look alike.
+  const COLORS = {
+    red: { name: "RED", base: [216, 40, 0], shade: [150, 24, 0], ui: "#ff5030", group: "r" },
+    garnet: { name: "GARNET", base: [140, 16, 40], shade: [92, 8, 24], ui: "#e84868", group: "r" },
+    pink: { name: "PINK", base: [232, 72, 152], shade: [168, 40, 104], ui: "#fc78b8", group: "r" },
+    orange: { name: "ORANGE", base: [244, 120, 0], shade: [176, 80, 0], ui: "#fc9838", group: "y" },
+    gold: { name: "GOLD", base: [232, 184, 0], shade: [168, 128, 0], ui: "#f8d038", group: "y" },
+    green: { name: "GREEN", base: [40, 160, 56], shade: [20, 104, 32], ui: "#58d854", group: "g" },
+    teal: { name: "TEAL", base: [0, 164, 168], shade: [0, 108, 112], ui: "#38d8d8", group: "b" },
+    blue: { name: "BLUE", base: [36, 92, 232], shade: [20, 56, 160], ui: "#3c7cfc", group: "b" },
+    purple: { name: "PURPLE", base: [124, 52, 196], shade: [80, 28, 136], ui: "#a878f8", group: "p" },
+    black: { name: "BLACK", base: [52, 52, 62], shade: [26, 26, 32], ui: "#b8b8c8", group: "k" },
+  };
+  const COLOR_KEYS = Object.keys(COLORS);
+  // Jersey colors per side, set from the two teams in the current match.
+  const TEAM = { red: { base: COLORS.red.base, shade: COLORS.red.shade }, blue: { base: COLORS.blue.base, shade: COLORS.blue.shade } };
   // Skin tones (base, shade); null = the art's own colors.
   const SKINS = { light: null, tan: [[232, 170, 112], [198, 134, 82]], brown: [[168, 108, 64], [128, 78, 44]], dark: [[112, 70, 42], [80, 48, 28]] };
   const HAIRS = { brown: null, black: [[44, 34, 28], [22, 16, 12]], blond: [[244, 196, 84], [200, 146, 40]], red: [[196, 78, 36], [140, 46, 20]], darkbrown: [[92, 52, 22], [62, 32, 10]] };
@@ -458,6 +483,27 @@
     m: ["DYLAN", "TYLER", "CHRIS", "OWEN", "MARCO", "ANDRE", "LUKE", "EVAN", "NATE", "COLE", "RYAN", "BEN"],
   };
   const CITIES = ["SAN DIEGO", "PORTLAND", "BOISE", "TUCSON", "RENO", "SACRAMENTO", "SPOKANE", "FRESNO", "EUGENE", "OAKLAND", "TACOMA", "ALBUQUERQUE"];
+  // Red side is always you; teams give each side a city, name and color.
+  let teams = { red: null, blue: null };
+  const DEFAULT_TEAMS = { red: { city: "", mascot: "RED", color: "red" }, blue: { city: "", mascot: "BLUE", color: "blue" } };
+  const tn = (s) => (teams[s] || DEFAULT_TEAMS[s]).mascot;
+  const tcol = (s) => COLORS[(teams[s] || DEFAULT_TEAMS[s]).color] || COLORS[DEFAULT_TEAMS[s].color];
+  function randomTeam(avoid) {
+    const colors = COLOR_KEYS.filter((k) => !avoid || COLORS[k].group !== COLORS[avoid.color].group);
+    return { city: pick(CITIES.filter((c) => !avoid || c !== avoid.city)), mascot: pick(MASCOTS.filter((m) => !avoid || m !== avoid.mascot)), color: pick(colors) };
+  }
+  // Push the teams' colors into the sprites, the court and the page.
+  function applyTeams() {
+    const root = document.documentElement.style;
+    [["red", "1"], ["blue", "2"]].forEach(([sd, n]) => {
+      const c = tcol(sd);
+      TEAM[sd].base = c.base; TEAM[sd].shade = c.shade;
+      root.setProperty(`--t${n}`, c.ui);
+      root.setProperty(`--t${n}b`, `rgb(${c.base.join(",")})`);
+      root.setProperty(`--t${n}a`, `rgba(${c.base.join(",")},.22)`);
+    });
+    sprites.clear();
+  }
   const MASCOTS = ["THUNDERHAWKS", "IRONCLADS", "RATTLERS", "COMETS", "STINGRAYS", "CYCLONES", "JACKALS", "OUTLAWS", "HAYMAKERS", "RICOCHETS", "FIREBIRDS", "VIPERS"];
   const players = [];
   const rollStats = () => Object.fromEntries(STAT_KEYS.map((k) => [k, roll4d6()]));
@@ -586,14 +632,16 @@
     // whose turn: the active half glows in its team color, the other half dims
     const redOn = side === "red" && live();
     const glow = 0.10 + 0.05 * (Math.floor(t / 400) % 2);
-    g.fillStyle = redOn ? `rgba(216,40,0,${glow})` : "rgba(24,18,14,.10)"; g.fillRect(12, 98, 180, 160);
-    g.fillStyle = !redOn && live() ? `rgba(36,92,232,${glow})` : "rgba(24,18,14,.10)"; g.fillRect(192, 98, 180, 160);
+    const rgba = (c, a) => `rgba(${c.base.join(",")},${a})`;
+    g.fillStyle = redOn ? rgba(tcol("red"), glow) : "rgba(24,18,14,.10)"; g.fillRect(12, 98, 180, 160);
+    g.fillStyle = !redOn && live() ? rgba(tcol("blue"), glow) : "rgba(24,18,14,.10)"; g.fillRect(192, 98, 180, 160);
     g.fillStyle = "#fcfcfc";
     g.fillRect(10, 96, 364, 2); g.fillRect(10, 258, 364, 2); g.fillRect(10, 96, 2, 164); g.fillRect(372, 96, 2, 164);
     g.fillStyle = "#f8b800"; g.fillRect(191, 66, 3, 194);
     if (live()) {
       const on = Math.floor(t / 400) % 2;
-      g.fillStyle = redOn ? (on ? "#ff4020" : "#d82800") : (on ? "#4c8cfc" : "#0058f8");
+      const tc = tcol(redOn ? "red" : "blue");
+      g.fillStyle = on ? tc.ui : `rgb(${tc.base.join(",")})`;
       const bx = redOn ? 12 : 194, bw = 178;
       g.fillRect(bx, 98, bw, 2); g.fillRect(bx, 256, bw, 2); g.fillRect(bx, 98, 2, 160); g.fillRect(bx + bw - 2, 98, 2, 160);
     }
@@ -616,15 +664,16 @@
     for (let y = 0; y < 200; y += 12) for (let x = (y / 12) % 2 ? 0 : 12; x < 384; x += 24) g.fillRect(x, y, 12, 12);
     g.fillStyle = "#14171f"; g.fillRect(0, 0, 384, 8);
     g.fillStyle = "#3c4458"; g.fillRect(0, 8, 384, 2);
+    const tc = tcol("red"), hex = (c, k = 1) => `rgb(${c.map((v) => Math.round(v * k)).join(",")})`;
     for (let i = 0; i < 6; i++) {
       const x = LOCKER_X(i), y = 18, w = 56, h = 178, on = draftSel && draftSel.id === i;
       const ready = draft && draft.team[i] && done(draft.team[i]);
       g.fillStyle = "#0c0e14"; g.fillRect(x - 1, y - 1, w + 2, h + 2);
-      g.fillStyle = on ? "#7a3434" : "#5c2a2e"; g.fillRect(x, y, w, h);
-      g.fillStyle = on ? "#9a4a48" : "#743638"; g.fillRect(x + 2, y + 2, w - 4, 2); g.fillRect(x + 2, y + 2, 2, h - 4);
-      g.fillStyle = "#3a1a1e"; g.fillRect(x + w - 4, y + 2, 2, h - 4); g.fillRect(x + 2, y + h - 4, w - 4, 2);
+      g.fillStyle = hex(tc.shade, on ? 1 : 0.75); g.fillRect(x, y, w, h);
+      g.fillStyle = hex(tc.base, on ? 1 : 0.8); g.fillRect(x + 2, y + 2, w - 4, 2); g.fillRect(x + 2, y + 2, 2, h - 4);
+      g.fillStyle = hex(tc.shade, 0.45); g.fillRect(x + w - 4, y + 2, 2, h - 4); g.fillRect(x + 2, y + h - 4, w - 4, 2);
       // vents
-      g.fillStyle = "#24100f";
+      g.fillStyle = hex(tc.shade, 0.3);
       for (let v = 0; v < 4; v++) g.fillRect(x + 12, y + 12 + v * 6, w - 24, 2);
       // name plate, with a light that turns green once the player is set
       g.fillStyle = "#d8c890"; g.fillRect(x + 13, y + 44, w - 26, 9);
@@ -742,7 +791,7 @@
     if (incoming) rangeLine(incoming.att, incoming.tgt, t);
     if (sel) arrow(sel.x, sel.y - 50, "#58d854", t);
     if (tgt) crosshair(tgt.x, tgt.y - 20, t);
-    if (incoming) { arrow(incoming.att.x, incoming.att.y - 50, "#3c7cfc", t); alertMark(incoming.tgt.x, incoming.tgt.y - 56, t); }
+    if (incoming) { arrow(incoming.att.x, incoming.att.y - 50, tcol("blue").ui, t); alertMark(incoming.tgt.x, incoming.tgt.y - 56, t); }
     if (flight) ball(flight.x, flight.y);
     if (phase === "draft" && draftSel) arrow(draftSel.x, draftSel.y - 50, "#58d854", t);
     requestAnimationFrame(frame);
@@ -757,7 +806,7 @@
       const x = (spotPos("red", row, 0).x / 384) * 100;
       return `<div class="nm rowtag" style="left:${x}%;top:${(256 / 264) * 100}%">${ROWS[row].label}</div>`;
     }).join("") : "";
-    const banner = scene === "locker" && draft ? `<div class="nm teamban" style="left:50%;top:0.6%">${draft.city} ${draft.mascot}</div>` : "";
+    const banner = scene === "locker" && draft ? `<div class="nm teamban" style="left:50%;top:0.6%;color:${tcol("red").ui}">${draft.city} ${draft.mascot}</div>` : "";
     $("labels").innerHTML = banner + rowTags + players.filter((p) => !p.out && phase !== "rush").map((p) => {
       const extra = !p.out && p.balls > 1 ? ` <span class="x">x${p.balls}</span>` : "";
       return `<div class="nm" style="left:${(p.x / 384) * 100}%;top:${((p.y + 2) / 264) * 100}%">${p.name}${extra}</div>`;
@@ -767,8 +816,10 @@
     for (const s of ["red", "blue"]) {
       $(s + "Pips").innerHTML = team(s).map((p) => `<span class="pip ${p.out ? "out" : ""}"></span>`).join("");
       const n = team(s).reduce((a, p) => a + p.balls, 0);
-      $(s + "Balls").textContent = `BALLS ${n}`;
+      $(s + "Balls").innerHTML = `<span class="bico"></span>${n}`;
+      $(s + "Name").textContent = tn(s);
     }
+    $("blueSide").style.visibility = scene === "locker" ? "hidden" : "";
     $("redSide").classList.toggle("on", live() && side === "red");
     $("blueSide").classList.toggle("on", live() && side === "blue");
     $("turnLabel").innerHTML = phase === "over" ? "FINAL" : phase === "draft" ? "TEAM DRAFT" : !live() ? "OPENING RUSH"
@@ -1024,14 +1075,14 @@
   async function after() {
     for (const s of ["red", "blue"]) if (!active(s).length) {
       const won = s === "blue";
-      phase = "over"; message = `<p class="big">${won ? "YOU WIN!" : "BLUE WINS."}</p><p>${active(won ? "red" : "blue").length} left standing.</p>`;
+      phase = "over"; message = `<p class="big">${won ? "YOU WIN!" : `THE ${tn("blue")} WIN.`}</p><p>${active(won ? "red" : "blue").length} left standing.</p>`;
       recordResult(won); render();
       setTimeout(() => (s === "red" ? SFX.lose() : SFX.win()), 400);
       return;
     }
     const mine = holders(side), theirs = holders(side === "red" ? "blue" : "red");
     if (!mine.length) {
-      if (side === "red") { phase = "move_prompt"; message += `<p><span class="big">Out of balls.</span> Move players before Blue's turn?</p>`; return render(); }
+      if (side === "red") { phase = "move_prompt"; message += `<p><span class="big">Out of balls.</span> Move players before the CPU's turn?</p>`; return render(); }
       return cpuEndTurn();
     }
     if (side === "red") { phase = "pick_thrower"; message += `<p>Pick your next thrower, or end your turn.</p>`; render(); }
@@ -1052,11 +1103,11 @@
     if (!holders(side).length) side = side === "red" ? "blue" : "red";
     showBanner();
     if (side === "red") { resetClock(); phase = "pick_thrower"; message = `<p class="big">YOUR TURN.</p><p>Pick a player holding a ball.</p>`; render(); }
-    else { phase = "busy"; message = `<p class="big">CPU TURN.</p><p>Blue is picking a thrower...</p>`; render(); await wait(1400); cpuMove(); }
+    else { phase = "busy"; message = `<p class="big">CPU TURN.</p><p>The ${tn("blue")} are picking a thrower...</p>`; render(); await wait(1400); cpuMove(); }
   }
   function endTurn() {
     sel = null; tgt = null; handoff = false;
-    phase = "move_prompt"; message = `<p class="big">END OF TURN.</p><p>Move players around before Blue's turn?</p>`;
+    phase = "move_prompt"; message = `<p class="big">END OF TURN.</p><p>Move players around before the CPU's turn?</p>`;
     render();
   }
   // CPU end of turn: same step as the player. Ball holders step up to the front
@@ -1105,7 +1156,7 @@
       if (pass) {
         cpuPasses++;
         pass.from.balls--; pass.to.balls++; SFX.select();
-        message = `<p class="big">${pass.from.name} HANDS THE BALL TO ${pass.to.name}.</p><p>Blue is setting up a better shot...</p>`;
+        message = `<p class="big">${pass.from.name} HANDS THE BALL TO ${pass.to.name}.</p><p>The ${tn("blue")} are setting up a better shot...</p>`;
         phase = "busy"; render(); await wait(1200);
         return cpuMove();
       }
@@ -1113,7 +1164,7 @@
     // Bank the last ball (keep it to block with) when the throw isn't worth it.
     if (holdersNow.length === 1 && thrownThisTurn > 0 && holders("red").length && best.p < 0.55) {
       cpuPasses = 0;
-      message = `<p>Blue ends its turn and keeps its ball.</p>`;
+      message = `<p>The ${tn("blue")} end their turn and keep their ball.</p>`;
       render(); await wait(700);
       return cpuEndTurn();
     }
@@ -1150,12 +1201,13 @@
     if (!as) return;
     store.set(SAVE[mode], {
       v: 1, mode, campGame, tag: as, side, turn, thrownThisTurn, cpuPasses, message, clock,
-      roster, queue, incoming: incoming ? [incoming.att.id, incoming.tgt.id] : null,
+      roster, teams, queue, incoming: incoming ? [incoming.att.id, incoming.tgt.id] : null,
       players: players.map((p) => ({ id: p.id, out: p.out, balls: p.balls, slot: p.slot })),
     });
   }
   function resume(sv) {
     mode = sv.mode; campGame = sv.campGame;
+    teams = sv.teams || { ...DEFAULT_TEAMS };
     setupMatch(sv.roster.red, sv.roster.blue);
     sv.players.forEach((q) => { const p = players[q.id]; p.out = q.out; p.balls = q.balls; p.slot = q.slot; p.home = spotPos(p.side, q.slot.row, q.slot.i); });
     queue.red = sv.queue.red; queue.blue = sv.queue.blue;
@@ -1179,7 +1231,7 @@
 
   // ---------- Throw clock ----------
   // Red gets 30 seconds of thinking time a turn. It runs only while Red is choosing a throw,
-  // and pauses during throws, menus and a hidden tab. At zero, all of Red's balls go to Blue.
+  // and pauses during throws, menus and a hidden tab. At zero, all of your balls go to the other team.
   const CLOCK = 30;
   let clock = CLOCK, clockAt = performance.now(), lastTick = 0;
   const resetClock = () => { clock = CLOCK; lastTick = 0; };
@@ -1202,7 +1254,7 @@
     team("red").forEach((p) => (p.balls = 0));
     give("blue", n);
     sel = null; tgt = null; handoff = false; phase = "busy";
-    message = `<p class="big hit">THROW CLOCK!</p><p>Time's up. Red forfeits ${n} ball${n === 1 ? "" : "s"} to Blue.</p>`;
+    message = `<p class="big hit">THROW CLOCK!</p><p>Time's up. You forfeit ${n} ball${n === 1 ? "" : "s"} to the ${tn("blue")}.</p>`;
     SFX.whistle(); render();
     await wait(1800);
     finishTurn();
@@ -1211,6 +1263,7 @@
   // ---------- Matches ----------
   function setupMatch(red, blue) {
     matchId++;
+    applyTeams();
     roster = { red, blue };
     players.length = 0; sprites.clear();
     red.forEach((b, k) => players.push(makePlayer(k, "red", b)));
@@ -1223,11 +1276,13 @@
   function newMatch(red, blue) {
     setupMatch(red, blue);
     const head = mode === "campaign" ? `<p class="big">WEST COAST CIRCUIT &middot; GAME ${campGame}</p>` : `<p class="big">OPENING RUSH!</p>`;
-    message = head + `<p>Five balls on the center line. Your 5 fastest players race Blue's for them: d20 + Speed in each lane. Whoever grabs more balls throws first.</p>`;
+    message = head + `<p>Five balls on the center line. Your 5 fastest players race theirs: d20 + Speed in each lane. Whoever grabs more balls throws first.</p>`;
     phase = "rush_ready"; Intro.hide(); placeRushBalls(); render();
   }
   function startQuick() {
     mode = "quick";
+    const mine = randomTeam();
+    teams = { red: mine, blue: randomTeam(mine) };
     const names = shuffle(NAMES);
     newMatch(rollTeam(names.slice(0, 6)), rollTeam(names.slice(6)));
   }
@@ -1266,7 +1321,7 @@
     rushBalls = [];
     side = tally.red > tally.blue ? "red" : "blue"; turn = 1;
     const hi = Math.max(tally.red, tally.blue), lo = 5 - hi;
-    message = `<p class="big">${side === "red" ? "RED" : "BLUE"} WINS THE OPENING RUSH, ${hi} BALLS TO ${lo}.</p><p>${side === "red" ? "Your turn. Pick a player holding a ball." : "Blue throws first."}</p>`;
+    message = `<p class="big">THE ${tn(side)} WIN THE OPENING RUSH, ${hi} BALLS TO ${lo}.</p><p>${side === "red" ? "Your turn. Pick a player holding a ball." : `The ${tn("blue")} throw first.`}</p>`;
     showBanner();
     if (side === "red") { phase = "pick_thrower"; render(); }
     else { phase = "busy"; render(); await wait(1400); cpuMove(); }
@@ -1283,6 +1338,8 @@
     // A new draft: six unrolled players (three of each body type) to name, roll and style.
     draft = c && c.team ? c : newDraft();
     if (!draft.city) Object.assign(draft, { city: pick(CITIES), mascot: pick(MASCOTS) });
+    if (!COLORS[draft.color]) draft.color = pick(COLOR_KEYS);
+    teams = { red: draft, blue: null };
     // Drafts saved before the six stats start their rolls over.
     draft.team.forEach((e) => { if (!Array.isArray(e.rolls)) Object.assign(e, { st: blankStats(), rolls: null, rerolled: false }); });
     mode = "campaign";
@@ -1298,7 +1355,7 @@
     const fs = shuffle(DRAFT_NAMES.f), ms = shuffle(DRAFT_NAMES.m);
     return {
       team: Array.from({ length: 6 }, (_, k) => ({ name: k % 2 === 0 ? fs[k] : ms[k], female: k % 2 === 0, look: Math.floor(Math.random() * LOOKS.length), custom: false })),
-      city: pick(CITIES), mascot: pick(MASCOTS), w: 0, l: 0, game: 0, ready: false,
+      city: pick(CITIES), mascot: pick(MASCOTS), color: pick(COLOR_KEYS), w: 0, l: 0, game: 0, ready: false,
     };
   }
   const saveDraft = () => store.set(CAMP, draft);
@@ -1311,6 +1368,10 @@
       e.name = draftSel.name = pick(DRAFT_NAMES[e.female ? "f" : "m"].filter((n) => !used.has(n)));
     }
     sprites.clear(); saveDraft(); draftMessage(); render();
+  }
+  function colorDraft() {
+    draft.color = COLOR_KEYS[(COLOR_KEYS.indexOf(draft.color) + 1) % COLOR_KEYS.length];
+    applyTeams(); saveDraft(); render();
   }
   function teamDraft() {
     message = `<p class="big">NAME YOUR TEAM</p><form id="nameForm" class="teamform"><label>CITY <input id="cityIn" maxlength="12" value="${draft.city}" autocomplete="off"></label><label>TEAM <input id="teamIn" maxlength="12" value="${draft.mascot}" autocomplete="off"></label><button type="submit">OK</button></form>`;
@@ -1392,6 +1453,7 @@
       { label: "LOOK", right: "change", go: lookDraft },
       { label: "NEXT PLAYER", go: nextDraft },
       { label: "TEAM NAME", go: teamDraft },
+      { label: "TEAM COLOR", right: COLORS[draft.color].name.toLowerCase(), go: colorDraft },
     ]);
     if (!done(e)) return menu(`PUT ${e.rolls[placed(e)].total} IN...`, [
       ...STAT_INFO.filter(([k]) => !e.st[k]).map(([k, lbl]) => ({ label: lbl, go: () => assignDraft(k) })),
@@ -1406,6 +1468,7 @@
       reroll,
       { label: "NEXT PLAYER", go: nextDraft },
       { label: "TEAM NAME", go: teamDraft },
+      { label: "TEAM COLOR", right: COLORS[draft.color].name.toLowerCase(), go: colorDraft },
       { label: "START SEASON", right: ready < 6 ? "finish all 6" : "go!", disabled: ready < 6, go: () => { draft.ready = true; saveDraft(); startCampaignGame(); } },
     ]);
   }
@@ -1416,6 +1479,8 @@
     mode = "campaign"; campGame = c.game + 1;
     const taken = new Set(c.team.map((x) => x.name));
     const red = c.team.map(({ name, female, look, st }) => ({ name, female, look, st }));
+    const mine = { city: c.city, mascot: c.mascot, color: c.color };
+    teams = { red: mine, blue: randomTeam(mine) };
     newMatch(red, rollTeam(shuffle(NAMES.filter((n) => !taken.has(n))).slice(0, 6)));
   }
 
