@@ -226,7 +226,10 @@
   .week .wk { color: var(--dim); white-space: nowrap; } .week .sw { width: 1.2em; height: 1.2em; box-shadow: 0 0 0 2px #000, 0 0 0 3px #6a6a7a; }
   .week .res { text-align: right; } .week .res.w { color: var(--green); } .week .res.l { color: #ff5030; }
   .week.next { border-color: var(--gold); } .week.next .res { color: var(--gold); }
-  .schbtns { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
+  .week.you { border-color: var(--t1); } .week.you span:nth-child(3) { color: var(--t1); }
+  .scores { margin-top: 8px; } .scores .score { color: var(--dim); } .scores .score b { color: var(--ink); font-weight: 400; }
+  .schbtns { display: grid; grid-template-columns: 1fr 1.3fr 2fr; gap: 8px; }
+  @media (max-width: 520px) { .schbtns { grid-template-columns: 1fr 1fr; } .schbtns .bigbtn { grid-column: 1 / -1; } }
   @media (max-width: 640px) {
     .chips { grid-template-columns: repeat(3, 1fr); }
     .sheet .slot { grid-template-columns: 1fr auto; }
@@ -912,7 +915,8 @@
   function newCircuit(mine) {
     const cities = shuffle(CIRCUIT_CITIES.filter((c) => c !== mine.city)), names = shuffle(MASCOTS.filter((m) => m !== mine.mascot));
     const colors = COLOR_KEYS.filter((k) => COLORS[k].group !== COLORS[mine.color].group);
-    return Array.from({ length: CIRCUIT_GAMES }, (_, k) => ({ city: cities[k], mascot: names[k], color: pick(colors) }));
+    // pow (-2 to 2) is how good a team is in the games simulated without you.
+    return Array.from({ length: CIRCUIT_GAMES }, (_, k) => ({ city: cities[k], mascot: names[k], color: pick(colors), pow: Math.floor(Math.random() * 5) - 2 }));
   }
   const MASCOTS = ["THUNDERHAWKS", "IRONCLADS", "RATTLERS", "COMETS", "STINGRAYS", "CYCLONES", "JACKALS", "OUTLAWS", "HAYMAKERS", "RICOCHETS", "FIREBIRDS", "VIPERS"];
   const players = [];
@@ -1918,27 +1922,68 @@
   }
 
   // The season schedule: shown after START SEASON and whenever you come back to the campaign between games.
+  // Round robin for 8 teams: you're team 0 and circuit[k] is team k + 1. In week r you play
+  // circuit[r], and the other six play the three games below. Their games are simulated.
+  const roundPairs = (r) => [1, 2, 3].map((i) => [1 + ((r + i) % 7), 1 + ((r - i + 7) % 7)]);
+  // Fill in the other teams' results for every week you've finished. Better teams win more often.
+  function simWeeks(c) {
+    c.sim = c.sim || [];
+    for (let r = c.sim.length; r < c.game; r++) {
+      c.sim.push(roundPairs(r).map(([a, b]) => {
+        const edge = ((c.circuit[a - 1].pow || 0) - (c.circuit[b - 1].pow || 0)) * 0.12;
+        return { a, b, w: Math.random() < 0.5 + edge ? a : b, left: 1 + Math.floor(Math.random() * Math.random() * 5) };
+      }));
+    }
+  }
+  const teamAt = (c, i) => (i === 0 ? c : c.circuit[i - 1]);
+  function standings(c) {
+    const rec = Array.from({ length: 8 }, (_, i) => ({ i, w: 0, l: 0 }));
+    (c.results || []).forEach((r, k) => { if (!r) return; const o = rec[k + 1]; if (r === "W") { rec[0].w++; o.l++; } else { rec[0].l++; o.w++; } });
+    c.sim.forEach((wk) => wk.forEach((g) => { rec[g.w].w++; rec[g.w === g.a ? g.b : g.a].l++; }));
+    return rec.sort((x, y) => y.w - x.w || x.l - y.l || teamAt(c, x.i).city.localeCompare(teamAt(c, y.i).city));
+  }
+  const swatch = (t) => `<span class="sw" style="background:rgb(${COLORS[t.color].base.join(",")})"></span>`;
+  // The season schedule: shown after START SEASON and whenever you come back to the campaign between games.
+  // STANDINGS flips the same box to the league table and the latest scores.
+  let schedTab = "schedule";
   function showSchedule() {
     const c = store.get(CAMP);
     if (!c) return Intro.menu();
     // Campaigns started before the USA Circuit get one now.
-    if (!c.circuit) { c.circuit = newCircuit(c); c.results = []; store.set(CAMP, c); }
+    if (!c.circuit) { c.circuit = newCircuit(c); c.results = c.results || []; }
+    simWeeks(c); store.set(CAMP, c);
     Intro.hide(); Music.play("team");
     const next = c.game, done = next >= c.circuit.length, res = c.results || [];
-    const rows = c.circuit.map((t, k) => {
-      const r = res[k] || (k < next ? "&middot;" : k === next ? "NEXT" : "");
-      return `<div class="week${k === next ? " next" : ""}"><span class="wk">WEEK ${k + 1}</span><span class="sw" style="background:rgb(${COLORS[t.color].base.join(",")})"></span><span>${t.city} ${t.mascot}</span><span class="res ${r === "W" ? "w" : r === "L" ? "l" : ""}">${r}</span></div>`;
-    }).join("");
+    let body;
+    if (schedTab === "schedule") {
+      body = c.circuit.map((t, k) => {
+        const r = res[k] || (k < next ? "&middot;" : k === next ? "NEXT" : "");
+        return `<div class="week${k === next ? " next" : ""}"><span class="wk">WEEK ${k + 1}</span>${swatch(t)}<span>${t.city} ${t.mascot}</span><span class="res ${r === "W" ? "w" : r === "L" ? "l" : ""}">${r}</span></div>`;
+      }).join("");
+    } else {
+      const table = standings(c).map((r, k) => {
+        const t = teamAt(c, r.i);
+        return `<div class="week${r.i === 0 ? " you" : ""}"><span class="wk">${k + 1}.</span>${swatch(t)}<span>${t.city} ${t.mascot}</span><span class="res">${r.w}-${r.l}</span></div>`;
+      }).join("");
+      const last = c.sim[c.sim.length - 1];
+      const scores = last ? `<p class="sec">WEEK ${c.sim.length} AROUND THE LEAGUE</p>` + last.map((g) => {
+        const w = teamAt(c, g.w), l = teamAt(c, g.w === g.a ? g.b : g.a);
+        return `<p class="score"><b>${w.mascot}</b> beat ${l.mascot}, ${g.left} left standing</p>`;
+      }).join("") : `<p class="sec">No games played yet.</p>`;
+      body = table + `<div class="scores">${scores}</div>`;
+    }
     $("schedBox").innerHTML = `<div class="schead"><p class="big">USA CIRCUIT</p><p>${c.city} ${c.mascot} &middot; <b>${c.w}-${c.l}</b></p></div>
-      <div class="weeks">${rows}</div>
-      <div class="schbtns"><button data-sc="menu">MENU</button><button class="bigbtn" data-sc="play"${done ? " disabled" : ""}>${done ? "SEASON OVER" : `PLAY WEEK ${next + 1}`}</button></div>`;
+      <div class="weeks">${body}</div>
+      <div class="schbtns"><button data-sc="menu">MENU</button><button data-sc="tab">${schedTab === "schedule" ? "STANDINGS" : "SCHEDULE"}</button><button class="bigbtn" data-sc="play"${done ? " disabled" : ""}>${done ? "SEASON OVER" : `PLAY WEEK ${next + 1}`}</button></div>`;
     $("sched").hidden = false;
-    $("schedBox").querySelector("button:not([disabled]).bigbtn, button").focus({ preventScroll: true });
+    $("schedBox").querySelector(`[data-sc="${schedTab === "schedule" ? "play" : "tab"}"]:not([disabled])`)?.focus({ preventScroll: true });
   }
   $("schedBox").addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-sc]");
     if (!b || b.disabled) return;
-    $("sched").hidden = true; SFX.select();
+    SFX.select();
+    if (b.dataset.sc === "tab") { schedTab = schedTab === "schedule" ? "standings" : "schedule"; return showSchedule(); }
+    $("sched").hidden = true; schedTab = "schedule";
     if (b.dataset.sc === "play") startCampaignGame(); else Intro.menu();
   });
 
