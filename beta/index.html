@@ -189,8 +189,8 @@
   .msg .red { color: var(--t1); } .msg .blue { color: var(--t2); }
   .msg .used { color: #55556a; text-decoration: line-through; } .msg .what { color: var(--dim); }
   /* Character sheet: build one drafted player. */
-  #sheet { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.78); display: grid; place-items: safe center; overflow: auto; padding: 16px; }
-  #sheet[hidden] { display: none; }
+  #sheet, #sched { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.78); display: grid; place-items: safe center; overflow: auto; padding: 16px; }
+  #sheet[hidden], #sched[hidden] { display: none; }
   .sheet { box-sizing: border-box; width: min(580px, 100%); background: var(--tv); font-size: 10px; line-height: 1.5; display: grid; gap: 14px; }
   .sheet button { font-family: var(--pixel); font-size: 10px; color: var(--ink); background: #000; border: 2px solid #6a6a7a; padding: 6px 8px; cursor: pointer; }
   .sheet button:hover:not(:disabled) { border-color: var(--ink); }
@@ -219,6 +219,14 @@
   .slot .val { color: #55556a; } .slot.full .val { color: var(--ink); } .slot .val i { color: var(--gold); font-style: normal; }
   .slot .what { color: var(--dim); font-size: 8px; }
   .shint { color: var(--dim); } .shint b { color: var(--gold); font-weight: 400; }
+  /* USA Circuit schedule: one row per week, the next game in gold. */
+  .schead { text-align: center; } .schead .big { color: var(--gold); font-size: 14px; margin-bottom: 4px; }
+  .weeks { display: grid; gap: 4px; }
+  .week { display: grid; grid-template-columns: auto 1.2em 1fr auto; gap: 10px; align-items: center; padding: 6px 8px; border: 2px solid #2c2c3a; }
+  .week .wk { color: var(--dim); white-space: nowrap; } .week .sw { width: 1.2em; height: 1.2em; box-shadow: 0 0 0 2px #000, 0 0 0 3px #6a6a7a; }
+  .week .res { text-align: right; } .week .res.w { color: var(--green); } .week .res.l { color: #ff5030; }
+  .week.next { border-color: var(--gold); } .week.next .res { color: var(--gold); }
+  .schbtns { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
   @media (max-width: 640px) {
     .chips { grid-template-columns: repeat(3, 1fr); }
     .sheet .slot { grid-template-columns: 1fr auto; }
@@ -314,6 +322,7 @@
   </div>
   <div class="skip" id="skipHint">TAP TO SKIP</div>
 </div>
+<div id="sched" hidden><div class="box sheet" id="schedBox" role="dialog" aria-label="Season schedule"></div></div>
 <div id="sheet" hidden><div class="box sheet" id="sheetBox" role="dialog" aria-label="Build player"></div></div>
 
 <script>
@@ -897,6 +906,14 @@
     });
     sprites.clear();
   }
+  // The USA Circuit: you and seven CPU teams from around the country. You play each of them once.
+  const CIRCUIT_CITIES = ["BOSTON", "CHICAGO", "DENVER", "ATLANTA", "PHOENIX", "DETROIT", "MEMPHIS", "SEATTLE", "MIAMI", "DALLAS", "OMAHA", "PITTSBURGH"];
+  const CIRCUIT_GAMES = 7;
+  function newCircuit(mine) {
+    const cities = shuffle(CIRCUIT_CITIES.filter((c) => c !== mine.city)), names = shuffle(MASCOTS.filter((m) => m !== mine.mascot));
+    const colors = COLOR_KEYS.filter((k) => COLORS[k].group !== COLORS[mine.color].group);
+    return Array.from({ length: CIRCUIT_GAMES }, (_, k) => ({ city: cities[k], mascot: names[k], color: pick(colors) }));
+  }
   const MASCOTS = ["THUNDERHAWKS", "IRONCLADS", "RATTLERS", "COMETS", "STINGRAYS", "CYCLONES", "JACKALS", "OUTLAWS", "HAYMAKERS", "RICOCHETS", "FIREBIRDS", "VIPERS"];
   const players = [];
   const rollStats = () => Object.fromEntries(STAT_KEYS.map((k) => [k, roll4d6()]));
@@ -1271,7 +1288,7 @@
     autosave();
     if (phase === "title") return;
     if (phase === "over") return menu("GAME OVER", mode === "campaign" ? [
-      { label: "NEXT GAME", right: `game ${campGame + 1}`, go: () => startCampaignGame() },
+      { label: "SCHEDULE", right: "usa circuit", go: showSchedule },
       { label: "MAIN MENU", go: () => Intro.menu() },
     ] : [
       { label: "REMATCH", right: "same teams", go: () => newMatch(roster.red, roster.blue) },
@@ -1620,7 +1637,7 @@
   function recordResult(won) {
     if (mode === "campaign") {
       const c = store.get(CAMP);
-      if (c) { c.game = campGame; c[won ? "w" : "l"]++; store.set(CAMP, c); }
+      if (c) { c.game = campGame; c[won ? "w" : "l"]++; (c.results = c.results || [])[campGame - 1] = won ? "W" : "L"; store.set(CAMP, c); }
     } else {
       const r = store.get(RECORD) || { w: 0, l: 0 };
       r[won ? "w" : "l"]++; store.set(RECORD, r);
@@ -1674,7 +1691,7 @@
   }
   function newMatch(red, blue) {
     setupMatch(red, blue);
-    const head = mode === "campaign" ? `<p class="big">WEST COAST CIRCUIT &middot; GAME ${campGame}</p>` : `<p class="big">OPENING RUSH!</p>`;
+    const head = mode === "campaign" ? `<p class="big">USA CIRCUIT &middot; WEEK ${campGame}</p>` : `<p class="big">OPENING RUSH!</p>`;
     message = head + `<p>Five balls on the center line. Your 5 fastest players race theirs: d20 + Speed in each lane. Whoever grabs more balls throws first.</p>`;
     phase = "rush_ready"; Intro.hide(); placeRushBalls(); render();
   }
@@ -1733,7 +1750,7 @@
   const blankStats = () => Object.fromEntries(STAT_KEYS.map((k) => [k, 0]));
   function startCampaign() {
     const c = store.get(CAMP);
-    if (c && c.ready) { const sv = store.get(SAVE.campaign); return sv ? resume(sv) : startCampaignGame(); }
+    if (c && c.ready) { const sv = store.get(SAVE.campaign); return sv ? resume(sv) : showSchedule(); }
     // A new draft: six unrolled players (three of each body type) to name, roll and style.
     draft = c && c.team ? c : newDraft();
     if (!draft.city) Object.assign(draft, { city: pick(CITIES), mascot: pick(MASCOTS) });
@@ -1876,7 +1893,7 @@
     if (act === "name") editingTeam = true;
     else if (act === "cancel") editingTeam = false;
     else if (act === "col") { draft.color = COLOR_KEYS[(COLOR_KEYS.indexOf(draft.color) + Number(b.dataset.d) + COLOR_KEYS.length) % COLOR_KEYS.length]; applyTeams(); saveDraft(); }
-    else if (act === "start") { draft.ready = true; saveDraft(); return startCampaignGame(); }
+    else if (act === "start") { draft.ready = true; draft.circuit = newCircuit(draft); draft.results = []; saveDraft(); SFX.start(); return showSchedule(); }
     SFX.select(); render();
   });
   $("lockerBar").addEventListener("submit", (ev) => {
@@ -1891,13 +1908,39 @@
   function startCampaignGame() {
     const c = store.get(CAMP);
     if (!c) return Intro.menu();
+    if (!c.circuit || c.game >= c.circuit.length) return showSchedule();
     mode = "campaign"; campGame = c.game + 1;
     const taken = new Set(c.team.map((x) => x.name));
     const red = c.team.map(({ name, female, look, hair, glasses, st }) => ({ name, female, look, hair, glasses, st }));
     const mine = { city: c.city, mascot: c.mascot, color: c.color };
-    teams = { red: mine, blue: randomTeam(mine) };
+    teams = { red: mine, blue: c.circuit[c.game] };
     newMatch(red, rollTeam(shuffle(NAMES.filter((n) => !taken.has(n))).slice(0, 6)));
   }
+
+  // The season schedule: shown after START SEASON and whenever you come back to the campaign between games.
+  function showSchedule() {
+    const c = store.get(CAMP);
+    if (!c) return Intro.menu();
+    // Campaigns started before the USA Circuit get one now.
+    if (!c.circuit) { c.circuit = newCircuit(c); c.results = []; store.set(CAMP, c); }
+    Intro.hide(); Music.play("team");
+    const next = c.game, done = next >= c.circuit.length, res = c.results || [];
+    const rows = c.circuit.map((t, k) => {
+      const r = res[k] || (k < next ? "&middot;" : k === next ? "NEXT" : "");
+      return `<div class="week${k === next ? " next" : ""}"><span class="wk">WEEK ${k + 1}</span><span class="sw" style="background:rgb(${COLORS[t.color].base.join(",")})"></span><span>${t.city} ${t.mascot}</span><span class="res ${r === "W" ? "w" : r === "L" ? "l" : ""}">${r}</span></div>`;
+    }).join("");
+    $("schedBox").innerHTML = `<div class="schead"><p class="big">USA CIRCUIT</p><p>${c.city} ${c.mascot} &middot; <b>${c.w}-${c.l}</b></p></div>
+      <div class="weeks">${rows}</div>
+      <div class="schbtns"><button data-sc="menu">MENU</button><button class="bigbtn" data-sc="play"${done ? " disabled" : ""}>${done ? "SEASON OVER" : `PLAY WEEK ${next + 1}`}</button></div>`;
+    $("sched").hidden = false;
+    $("schedBox").querySelector("button:not([disabled]).bigbtn, button").focus({ preventScroll: true });
+  }
+  $("schedBox").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-sc]");
+    if (!b || b.disabled) return;
+    $("sched").hidden = true; SFX.select();
+    if (b.dataset.sc === "play") startCampaignGame(); else Intro.menu();
+  });
 
   // ---------- Title music ----------
   // Browsers block sound until the first tap or key, so a blocked start retries on the next one.
@@ -1958,7 +2001,7 @@
     const items = [];
     if (quick) items.push({ label: "CONTINUE", right: "quick game", go: () => resume(quick) });
     items.push({ label: "QUICK GAME", right: rec ? `W${rec.w} L${rec.l}` : "vs cpu", go: startQuick });
-    items.push({ label: "CAMPAIGN", right: c && c.ready ? `game ${c.game + 1} &middot; ${c.w}-${c.l}` : c ? "draft" : "new", go: startCampaign });
+    items.push({ label: "CAMPAIGN", right: c && c.ready ? `week ${c.game + 1} &middot; ${c.w}-${c.l}` : c ? "draft" : "new", go: startCampaign });
     items.push({ label: "VERSUS", right: "soon", disabled: true, go() {} });
     menuInto($("mainMenu"), "MAIN MENU", items);
     const first = $("mainMenu").querySelector("button:not([disabled])");
