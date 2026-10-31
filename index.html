@@ -103,10 +103,8 @@
   .lbform input { font-family: var(--pixel); font-size: 10px; background: #000; color: var(--ink); border: 2px solid var(--ink); padding: 5px 6px; width: 12em; max-width: 42vw; text-transform: uppercase; }
   .box { border: 3px solid var(--ink); border-radius: 6px; box-shadow: inset 0 0 0 2px #000, inset 0 0 0 4px #4a4a5a; padding: 10px 12px; font-family: var(--pixel); font-size: clamp(8px, 1.3vw, 10px); line-height: 1.75; min-width: 0; min-height: 118px; }
   .msg p { margin: 0; }
-  .msg.alert { border-color: var(--red); animation: alertblink .5s steps(1) infinite; }
+  .msg { border-color: var(--red); }
   .msg.alert .big { color: var(--red); }
-  @keyframes alertblink { 50% { border-color: var(--ink); } }
-  @media (prefers-reduced-motion: reduce) { .msg.alert { animation: none; } }
   .msg .big { color: var(--gold); }
   .msg .hit { color: var(--red); } .msg .safe { color: var(--green); }
   .roll { display: inline-block; min-width: 2.2em; text-align: center; background: var(--ink); color: #000; padding: 0 3px; }
@@ -135,6 +133,23 @@
   .notes h2 { margin: 0 0 6px; font-family: var(--pixel); font-weight: 400; font-size: 10px; color: var(--ink); letter-spacing: 1px; }
   .notes ul { margin: 0; padding-left: 18px; }
   .notes li { margin-bottom: 4px; }
+  .fbwrap { border: 3px solid var(--red); border-radius: 6px; padding: 12px; background: var(--tv); }
+  .fbwrap h2, .fb h2 { margin: 0 0 4px; font-family: var(--pixel); font-weight: 400; font-size: 10px; color: var(--ink); letter-spacing: 1px; }
+  .fb { display: grid; gap: 8px; }
+  .fb .lead { margin: 0; color: var(--dim); line-height: 1.4; }
+  .fb .kinds { display: flex; gap: 6px; flex-wrap: wrap; }
+  .fb button { font-family: var(--pixel); font-size: 10px; color: var(--ink); background: #000; border: 2px solid #6a6a7a; padding: 7px 9px; cursor: pointer; }
+  .fb button:hover:not(:disabled) { border-color: var(--ink); }
+  .fb .kinds button[aria-pressed="true"] { background: var(--red); border-color: var(--red); }
+  .fb button[type="submit"] { background: var(--gold); color: #000; border-color: var(--gold); justify-self: start; }
+  .fb button:disabled { opacity: .5; cursor: default; }
+  .fb textarea, .fb input { box-sizing: border-box; width: 100%; font-family: var(--body); font-size: 16px; color: var(--ink); background: #000; border: 2px solid #6a6a7a; border-radius: 4px; padding: 8px; }
+  .fb textarea { min-height: 96px; resize: vertical; }
+  .fb textarea:focus, .fb input:focus { outline: none; border-color: var(--ink); }
+  .fb .hp { position: absolute; left: -9999px; width: 1px; height: 1px; }
+  .fb .stat { min-height: 1.2em; margin: 0; font-family: var(--pixel); font-size: 9px; line-height: 1.6; }
+  .fb .stat.ok { color: var(--green); } .fb .stat.bad { color: var(--red); }
+  .fb .stat a { color: var(--ink); }
   .notes b { color: var(--ink); font-weight: 600; }
 
   @media (max-width: 640px) {
@@ -197,9 +212,9 @@
   .msg .red { color: var(--t1); } .msg .blue { color: var(--t2); }
   .msg .used { color: #55556a; text-decoration: line-through; } .msg .what { color: var(--dim); }
   /* Character sheet: build one drafted player. */
-  #sheet, #sched, #help { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.78); display: grid; place-items: safe center; overflow: auto; padding: 16px; }
-  #sheet[hidden], #sched[hidden], #help[hidden] { display: none; }
-  #help { z-index: 60; } /* above the title screen */
+  #sheet, #sched, #help, #fb { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.78); display: grid; place-items: safe center; overflow: auto; padding: 16px; }
+  #sheet[hidden], #sched[hidden], #help[hidden], #fb[hidden] { display: none; }
+  #help, #fb { z-index: 60; } /* above the title screen */
   /* How to play: short sections, one per idea. */
   .help h3 { font-family: var(--pixel); font-weight: 400; font-size: 11px; color: var(--gold); margin: 4px 0 6px; }
   .help ul { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; } .help b { color: var(--gold); font-weight: 400; }
@@ -318,6 +333,7 @@
       </ul>
     </div>
   </section>
+  <section class="fbwrap" id="fbInline" aria-label="Feedback"></section>
 </div>
 
 <div id="intro" aria-label="Dodge title screen">
@@ -346,6 +362,7 @@
   </div>
   <div class="skip" id="skipHint">TAP TO SKIP</div>
 </div>
+<div id="fb" hidden><div class="box sheet" id="fbBox" role="dialog" aria-label="Send feedback"></div></div>
 <div id="help" hidden><div class="box sheet" id="helpBox" role="dialog" aria-label="How to play"></div></div>
 <div id="sched" hidden><div class="box sheet" id="schedBox" role="dialog" aria-label="Season schedule"></div></div>
 <div id="sheet" hidden><div class="box sheet" id="sheetBox" role="dialog" aria-label="Build player"></div></div>
@@ -354,10 +371,10 @@
 (() => {
   // ---------- Beta ----------
   const VERSION = "0.1";
-  // Steve's Google Form, as a "pre-filled link" made with VERSION and WHERE typed into the two
-  // matching answers; those words get swapped for the real version and where the player was.
-  // Left empty, the FEEDBACK buttons stay hidden.
-  const FEEDBACK_URL = "";
+  // Feedback goes to Steve's inbox through FormSubmit (free, no server). The first message sent
+  // makes FormSubmit email admin@ an "Activate" link; nothing is delivered until that's clicked.
+  const FEEDBACK_TO = "admin@ballistaegear.com";
+  const FEEDBACK_POST = `https://formsubmit.co/ajax/${FEEDBACK_TO}`;
 
   // ---------- Rules (RULES.md) ----------
   const d20 = () => 1 + Math.floor(Math.random() * 20);
@@ -1386,7 +1403,7 @@
     box.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { SFX.menu(); items[+b.dataset.i].go(); }));
   }
   const menu = (title, items) => menuInto($("menu"), title, items);
-  const feedbackItem = () => (FEEDBACK_URL ? [{ label: "FEEDBACK", right: "beta", go: () => feedback(whereNow()) }] : []);
+  const feedbackItem = () => [{ label: "FEEDBACK", right: "bugs, ideas", go: () => showFeedback(whereNow()) }];
   function render() {
     $("hud").classList.toggle("locker", scene === "locker");
     $("msg").innerHTML = message;
@@ -2292,9 +2309,61 @@
     };
   })();
   // ---------- Beta: how to play and feedback ----------
-  function feedback(where) {
-    window.open(FEEDBACK_URL.replace("VERSION", encodeURIComponent("v" + VERSION)).replace("WHERE", encodeURIComponent(where)), "_blank", "noopener");
+  const FB_KINDS = { feedback: "FEEDBACK", bug: "REPORT A BUG", idea: "IDEA" };
+  const fbForm = (where, title) => `<form class="fb" data-where="${where}" novalidate>
+      ${title ? `<h2>${title}</h2>` : ""}
+      <p class="lead">Feedback, a bug, or an idea for the game? It goes straight to the Ballistae team.</p>
+      <div class="kinds">${Object.entries(FB_KINDS).map(([k, l], i) => `<button type="button" data-kind="${k}" aria-pressed="${i === 0}">${l}</button>`).join("")}</div>
+      <textarea name="message" maxlength="3000" placeholder="What's fun? What's confusing? What broke? What should we add?" aria-label="Your message"></textarea>
+      <input name="email" type="email" autocomplete="email" placeholder="Your email (optional, if you'd like a reply)" aria-label="Your email (optional)">
+      <input name="_honey" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <button type="submit">SEND</button>
+      <p class="stat" aria-live="polite"></p>
+    </form>`;
+  function showFeedback(where) {
+    $("fbBox").innerHTML = `${fbForm(where, "SEND FEEDBACK")}<button data-fb="close" style="justify-self:end">CLOSE</button>`;
+    $("fb").hidden = false;
+    $("fbBox").querySelector("textarea").focus({ preventScroll: true });
   }
+  $("fbInline").innerHTML = fbForm("Below the game", "FEEDBACK, BUGS & IDEAS");
+  $("fbBox").addEventListener("click", (ev) => { if (ev.target.closest('[data-fb="close"]')) { SFX.select(); $("fb").hidden = true; } });
+  $("fb").addEventListener("keydown", (ev) => { if (ev.key === "Escape") $("fb").hidden = true; });
+  document.addEventListener("click", (ev) => {
+    const b = ev.target.closest(".fb [data-kind]");
+    if (b) b.parentNode.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  });
+  document.addEventListener("submit", async (ev) => {
+    const f = ev.target.closest(".fb");
+    if (!f) return;
+    ev.preventDefault();
+    const stat = f.querySelector(".stat"), send = f.querySelector('[type="submit"]');
+    const say = (cls, html) => { stat.className = "stat " + cls; stat.innerHTML = html; };
+    const message = f.message.value.trim(), email = f.email.value.trim();
+    if (!message) { say("bad", "TYPE A MESSAGE FIRST."); f.message.focus(); return; }
+    if (f._honey.value) return; // a bot filled the hidden field
+    const kind = f.querySelector('[aria-pressed="true"]').dataset.kind;
+    const where = f.dataset.where === "Below the game" ? `${whereNow()} (form below the game)` : f.dataset.where;
+    send.disabled = true; say("", "SENDING...");
+    try {
+      const r = await fetch(FEEDBACK_POST, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          _subject: `Dodge beta ${FB_KINDS[kind].toLowerCase()} (v${VERSION})`,
+          _template: "table", _captcha: "false",
+          type: FB_KINDS[kind], message, email: email || "(none)",
+          version: "v" + VERSION, where, device: navigator.userAgent, screen: `${innerWidth}x${innerHeight}`,
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || String(j.success) === "false") throw new Error(j.message || r.status);
+      f.message.value = "";
+      say("ok", "THANKS! IT'S ON ITS WAY.");
+      SFX.select();
+    } catch (e) {
+      say("bad", `COULDN'T SEND. TRY AGAIN, OR EMAIL <a href="mailto:${FEEDBACK_TO}">${FEEDBACK_TO}</a>`);
+    } finally { send.disabled = false; }
+  });
   // Where the player is, for the feedback form: "Quick game", "Campaign week 3", "Main menu"...
   function whereNow() {
     const c = store.get(CAMP);
@@ -2326,7 +2395,7 @@
         <li>Draft six players. Roll <b>4d6, drop the lowest</b>, six times, and put each total into a stat. Name them, style them, pick your colors.</li>
         <li>Then play the <b>NADL</b>: 16 teams, two conferences, a 7-week season. Every match is <b>best 2 of 3</b>. The top 4 in each conference make the playoffs, and the winners meet in the Championship.</li>
         <li>Your progress saves in this browser on this device.</li></ul>
-      ${FEEDBACK_URL ? `<h3>TELL US WHAT YOU THINK</h3><ul><li>This is an early beta. Tap <b>FEEDBACK</b> on the main menu or after any game.</li></ul>` : ""}
+      <h3>TELL US WHAT YOU THINK</h3><ul><li>This is an early beta. Tap <b>FEEDBACK</b> on the main menu or after any game to send feedback, report a bug or suggest an idea.</li></ul>
       <button class="bigbtn" data-help="close">GOT IT</button></div>`;
     $("help").hidden = false;
     $("helpBox").querySelector("button").focus({ preventScroll: true });
@@ -2342,7 +2411,7 @@
     items.push({ label: "CAMPAIGN", right: c && c.ready ? (c.game < CIRCUIT_GAMES ? `week ${c.game + 1} &middot; ${c.w}-${c.l}` : "playoffs") : c ? "draft" : "new", go: startCampaign });
     items.push({ label: "VERSUS", right: "soon", disabled: true, go() {} });
     items.push({ label: "HOW TO PLAY", right: "rules", go: showHelp });
-    if (FEEDBACK_URL) items.push({ label: "FEEDBACK", right: "beta", go: () => feedback("Main menu") });
+    items.push({ label: "FEEDBACK", right: "bugs, ideas", go: () => showFeedback("Main menu") });
     menuInto($("mainMenu"), "MAIN MENU", items);
     const first = $("mainMenu").querySelector("button:not([disabled])");
     if (first) first.focus({ preventScroll: true });
