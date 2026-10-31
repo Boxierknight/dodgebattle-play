@@ -473,8 +473,21 @@
     black: { name: "BLACK", base: [52, 52, 62], shade: [26, 26, 32], ui: "#b8b8c8", group: "k" },
   };
   const COLOR_KEYS = Object.keys(COLORS);
+  // Shorts: four neutrals plus any team color, so each team wears a two-color uniform.
+  const SHORTS = {
+    white: { name: "WHITE", base: [236, 236, 240], shade: [176, 176, 190] },
+    black: { name: "BLACK", base: [52, 52, 66], shade: [34, 34, 44] },
+    gray: { name: "GRAY", base: [128, 128, 140], shade: [88, 88, 100] },
+    navy: { name: "NAVY", base: [30, 40, 100], shade: [18, 24, 64] },
+    ...COLORS,
+  };
+  const SHORTS_KEYS = Object.keys(SHORTS);
+  // Shorts that stand apart from the jersey: never the same color, and no dark shorts under black.
+  const shortsFit = (jersey) => SHORTS_KEYS.filter((k) => k !== jersey && !(jersey === "black" && (k === "gray" || k === "navy")));
+  // Mostly neutral shorts, sometimes a second team color.
+  const randomShorts = (jersey) => { const ok = shortsFit(jersey), n = ok.filter((k) => !COLORS[k]); return pick(Math.random() < 0.7 ? n : ok); };
   // Jersey colors per side, set from the two teams in the current match.
-  const TEAM = { red: { base: COLORS.red.base, shade: COLORS.red.shade }, blue: { base: COLORS.blue.base, shade: COLORS.blue.shade } };
+  const TEAM = { red: { base: COLORS.red.base, shade: COLORS.red.shade, sb: SHORTS.black.base, ss: SHORTS.black.shade }, blue: { base: COLORS.blue.base, shade: COLORS.blue.shade, sb: SHORTS.black.base, ss: SHORTS.black.shade } };
   // Skin tones and hair colors (base, shade).
   const SKINS = { light: [[248, 196, 144], [214, 152, 104]], tan: [[232, 170, 112], [198, 134, 82]], brown: [[168, 108, 64], [128, 78, 44]], dark: [[112, 70, 42], [80, 48, 28]] };
   const HAIRS = { brown: [[128, 80, 44], [88, 52, 26]], black: [[44, 34, 28], [22, 16, 12]], blond: [[244, 196, 84], [200, 146, 40]], red: [[196, 78, 36], [140, 46, 20]], darkbrown: [[92, 52, 22], [62, 32, 10]] };
@@ -525,10 +538,10 @@
       ".oSsSsSoJJJjJJJJjJJoSSSSoSSo",
       ".oSSsSSoJJJjJJJJJJJoooSSoSso",
       "..oSSssooooooooooooo..ooooo.",
-      "...ooooopooopppopopoo.......",
-      "......ooooooooooooopoo......",
-      "......ooooopppooopoooo......",
-      "......ooooppooooooooso......",
+      "...oooooPPPPPPPPPPPPo.......",
+      "......opppppppppppppPo......",
+      "......oppppppPoPpppppo......",
+      "......oPPPPPPooPPPPPso......",
       "......oSSsoooo.ooossso......",
       ".....oSSssso....oSSsso......",
       "....ooSssSo.....oSSsSo......",
@@ -570,10 +583,10 @@
       ".oSSsssoBBBBoBjjJJjoSSSSoSSo",
       ".oSsssboBBBBoBjjJJjoooSSoSso",
       "..oSssSoBBBooooooooo..ooooo.",
-      "...ooooPPSoopppoppooo.......",
-      "......ooooppppooopppoo......",
-      "......oooppoppooooppoo......",
-      "......ooooopooooopooso......",
+      "...ooooPPSoPPPPPPPPPo.......",
+      "......opppppppppppppPo......",
+      "......oppppppPoPpppppo......",
+      "......oPPPPPPooPPPPPso......",
       "......oSsssooo.ooosSso......",
       ".....oSsssso....oSSsso......",
       "....ooSsSSo.....oSSSSo......",
@@ -613,10 +626,10 @@
       "....oSSSsSoJJjjjJjJJoSSoosso",
       ".....oSSssoJJjjJJJJJooSSosso",
       "......ooooJJJJJJJJJJo.ooooo.",
-      ".......ooJooooooooooo.......",
-      ".......oJJJJjjjjjJJJJo......",
-      ".......ojJJJjjjoJJJooo......",
-      ".......ooooJjJooJjojjo......",
+      ".......ooPooooooooooo.......",
+      ".......oPPPPpppppPPPPo......",
+      ".......opPPPpppoPPPooo......",
+      ".......ooooPpPooPpoppo......",
       "......oossooooo.oosSSo......",
       ".....ooSsSSso....ossSo......",
       "....ooooKkko.....ooooo......",
@@ -654,10 +667,10 @@
       "....oSSSsSoJJjjjJjJJobbbBBBo",
       ".....oSSssoJJjjJJJJJooBBBBoo",
       "......ooooJJJJJJJJJJo.ooooo.",
-      ".......ooJooooooooooo.......",
-      ".......oJJJJjjjjjJJJJo......",
-      ".......ojJJJjjjoJJJooo......",
-      ".......ooooJjJooJjojjo......",
+      ".......ooPooooooooooo.......",
+      ".......oPPPPpppppPPPPo......",
+      ".......opPPPpppoPPPooo......",
+      ".......ooooPpPooPpoppo......",
       "......oossooooo.oosSSo......",
       ".....ooSsSSso....ossSo......",
       "....ooooKkko.....ooooo......",
@@ -853,7 +866,7 @@
   // Blue faces left. Out players are dimmed.
   function recolor(pose, p, dim) {
     const look = LOOKS[p.look], skin = SKINS[look.skin], hair = HAIRS[look.hair];
-    const pal = { ...FIXED, s: skin[0], S: skin[1], r: hair[0], R: hair[1], j: TEAM[p.side].base, J: TEAM[p.side].shade };
+    const pal = { ...FIXED, s: skin[0], S: skin[1], r: hair[0], R: hair[1], j: TEAM[p.side].base, J: TEAM[p.side].shade, p: TEAM[p.side].sb, P: TEAM[p.side].ss };
     const cv = document.createElement("canvas"); const H = POSE_MAPS[pose].length;
     cv.width = SPR_W; cv.height = H;
     const x = cv.getContext("2d"), d = x.createImageData(SPR_W, H), px = d.data;
@@ -894,15 +907,16 @@
   const tn = (s) => (teams[s] || DEFAULT_TEAMS[s]).mascot;
   const tcol = (s) => COLORS[(teams[s] || DEFAULT_TEAMS[s]).color] || COLORS[DEFAULT_TEAMS[s].color];
   function randomTeam(avoid) {
-    const colors = COLOR_KEYS.filter((k) => !avoid || COLORS[k].group !== COLORS[avoid.color].group);
-    return { city: pick(CITIES.filter((c) => !avoid || c !== avoid.city)), mascot: pick(MASCOTS.filter((m) => !avoid || m !== avoid.mascot)), color: pick(colors) };
+    const colors = COLOR_KEYS.filter((k) => !avoid || COLORS[k].group !== COLORS[avoid.color].group), color = pick(colors);
+    return { city: pick(CITIES.filter((c) => !avoid || c !== avoid.city)), mascot: pick(MASCOTS.filter((m) => !avoid || m !== avoid.mascot)), color, shorts: randomShorts(color) };
   }
   // Push the teams' colors into the sprites, the court and the page.
   function applyTeams() {
     const root = document.documentElement.style;
     [["red", "1"], ["blue", "2"]].forEach(([sd, n]) => {
       const c = tcol(sd);
-      TEAM[sd].base = c.base; TEAM[sd].shade = c.shade;
+      const sh = SHORTS[(teams[sd] || {}).shorts] || SHORTS.black;
+      TEAM[sd].base = c.base; TEAM[sd].shade = c.shade; TEAM[sd].sb = sh.base; TEAM[sd].ss = sh.shade;
       root.setProperty(`--t${n}`, c.ui);
       root.setProperty(`--t${n}b`, `rgb(${c.base.join(",")})`);
       root.setProperty(`--t${n}a`, `rgba(${c.base.join(",")},.22)`);
@@ -917,7 +931,7 @@
     const cities = shuffle(CIRCUIT_CITIES.filter((c) => c !== mine.city)), names = shuffle(MASCOTS.filter((m) => m !== mine.mascot));
     const colors = circuitColors(mine);
     // pow (-2 to 2) is how good a team is in the games simulated without you.
-    return Array.from({ length: CIRCUIT_GAMES }, (_, k) => ({ city: cities[k], mascot: names[k], color: colors[k], pow: Math.floor(Math.random() * 5) - 2 }));
+    return Array.from({ length: CIRCUIT_GAMES }, (_, k) => ({ city: cities[k], mascot: names[k], color: colors[k], shorts: randomShorts(colors[k]), pow: Math.floor(Math.random() * 5) - 2 }));
   }
   // Seven different colors, none from your color's family, so every matchup reads at a glance.
   function circuitColors(mine) {
@@ -1764,6 +1778,7 @@
     draft = c && c.team ? c : newDraft();
     if (!draft.city) Object.assign(draft, { city: pick(CITIES), mascot: pick(MASCOTS) });
     if (!COLORS[draft.color]) draft.color = pick(COLOR_KEYS);
+    if (!shortsFit(draft.color).includes(draft.shorts)) draft.shorts = shortsFit(draft.color)[0];
     teams = { red: draft, blue: null };
     // Drafts saved before the six stats start their rolls over.
     draft.team.forEach((e) => { if (!e.hair) Object.assign(e, { hair: randomHair(e.female), glasses: false }); });
@@ -1781,7 +1796,7 @@
     const fs = shuffle(DRAFT_NAMES.f), ms = shuffle(DRAFT_NAMES.m);
     return {
       team: Array.from({ length: 6 }, (_, k) => ({ name: k % 2 === 0 ? fs[k] : ms[k], female: k % 2 === 0, ...newLook(k % 2 === 0), custom: false })),
-      city: pick(CITIES), mascot: pick(MASCOTS), color: pick(COLOR_KEYS), w: 0, l: 0, game: 0, ready: false,
+      city: pick(CITIES), mascot: pick(MASCOTS), color: pick(COLOR_KEYS), shorts: "white", w: 0, l: 0, game: 0, ready: false,
     };
   }
   const saveDraft = () => store.set(CAMP, draft);
@@ -1892,6 +1907,7 @@
       : `<div class="lbrow"><span class="lbready"><b>${ready}</b> OF 6 READY</span><span class="lbhint">Tap a player to build them</span></div>
          <div class="lbrow"><button data-lb="name">TEAM NAME</button>
            <span class="lbcolor">COLOR <button data-lb="col" data-d="-1" aria-label="Previous color">&#9664;</button><span class="sw" style="background:rgb(${c.base.join(",")})"></span><button data-lb="col" data-d="1" aria-label="Next color">&#9654;</button></span>
+           <span class="lbcolor">SHORTS <button data-lb="sho" data-d="-1" aria-label="Previous shorts color">&#9664;</button><span class="sw" style="background:rgb(${SHORTS[draft.shorts].base.join(",")})"></span><button data-lb="sho" data-d="1" aria-label="Next shorts color">&#9654;</button></span>
            <button class="lbstart" data-lb="start"${ready < 6 ? " disabled" : ""}>START SEASON</button></div>`;
     if (editingTeam) $("cityIn").focus();
   }
@@ -1901,7 +1917,11 @@
     const act = b.dataset.lb;
     if (act === "name") editingTeam = true;
     else if (act === "cancel") editingTeam = false;
-    else if (act === "col") { draft.color = COLOR_KEYS[(COLOR_KEYS.indexOf(draft.color) + Number(b.dataset.d) + COLOR_KEYS.length) % COLOR_KEYS.length]; applyTeams(); saveDraft(); }
+    else if (act === "col") {
+      draft.color = COLOR_KEYS[(COLOR_KEYS.indexOf(draft.color) + Number(b.dataset.d) + COLOR_KEYS.length) % COLOR_KEYS.length];
+      if (!shortsFit(draft.color).includes(draft.shorts)) draft.shorts = shortsFit(draft.color)[0];
+      applyTeams(); saveDraft();
+    } else if (act === "sho") { const ok = shortsFit(draft.color); draft.shorts = ok[(ok.indexOf(draft.shorts) + Number(b.dataset.d) + ok.length) % ok.length]; applyTeams(); saveDraft(); }
     else if (act === "start") { draft.ready = true; draft.circuit = newCircuit(draft); draft.results = []; saveDraft(); SFX.start(); return showSchedule(); }
     SFX.select(); render();
   });
@@ -1921,7 +1941,7 @@
     mode = "campaign"; campGame = c.game + 1;
     const taken = new Set(c.team.map((x) => x.name));
     const red = c.team.map(({ name, female, look, hair, glasses, st }) => ({ name, female, look, hair, glasses, st }));
-    const mine = { city: c.city, mascot: c.mascot, color: c.color };
+    const mine = { city: c.city, mascot: c.mascot, color: c.color, shorts: c.shorts };
     teams = { red: mine, blue: c.circuit[c.game] };
     newMatch(red, rollTeam(shuffle(NAMES.filter((n) => !taken.has(n))).slice(0, 6)));
   }
@@ -1947,7 +1967,9 @@
     c.sim.forEach((wk) => wk.forEach((g) => { rec[g.w].w++; rec[g.w === g.a ? g.b : g.a].l++; }));
     return rec.sort((x, y) => y.w - x.w || x.l - y.l || teamAt(c, x.i).city.localeCompare(teamAt(c, y.i).city));
   }
-  const swatch = (t) => `<span class="sw" style="background:rgb(${COLORS[t.color].base.join(",")})"></span>`;
+  // Jersey on top, shorts below.
+  const uniform = (t) => `linear-gradient(rgb(${COLORS[t.color].base.join(",")}) 55%, rgb(${(SHORTS[t.shorts] || SHORTS.black).base.join(",")}) 55%)`;
+  const swatch = (t) => `<span class="sw" style="background:${uniform(t)}"></span>`;
   // The season schedule: shown after START SEASON and whenever you come back to the campaign between games.
   // STANDINGS flips the same box to the league table and the latest scores.
   let schedTab = "schedule";
@@ -1958,6 +1980,8 @@
     if (!c.circuit) { c.circuit = newCircuit(c); c.results = c.results || []; }
     // Circuits drawn before colors were unique get new ones.
     if (new Set(c.circuit.map((t) => t.color)).size < c.circuit.length) { const cs = circuitColors(c); c.circuit.forEach((t, k) => (t.color = cs[k])); }
+    // And shorts, for teams drawn before uniforms had two colors.
+    c.circuit.forEach((t) => { if (!SHORTS[t.shorts] || t.shorts === t.color) t.shorts = randomShorts(t.color); });
     simWeeks(c); store.set(CAMP, c);
     Intro.hide(); Music.play("team");
     const next = c.game, done = next >= c.circuit.length, res = c.results || [];
