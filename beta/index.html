@@ -226,6 +226,9 @@
   .week .wk { color: var(--dim); white-space: nowrap; } .week .sw { width: 1.2em; height: 1.2em; box-shadow: 0 0 0 2px #000, 0 0 0 3px #6a6a7a; }
   .week .res { text-align: right; } .week .res.w { color: var(--green); } .week .res.l { color: #ff5030; }
   .week.next { border-color: var(--gold); } .week.next .res { color: var(--gold); }
+  .week.stand { padding: 3px 8px; }
+  .week.cut { margin-bottom: 6px; box-shadow: 0 4px 0 -2px var(--gold); }
+  .weeks .conf { color: var(--gold); margin: 8px 0 2px; } .weeks .conf:first-child { margin-top: 0; }
   .week.you { border-color: var(--t1); } .week.you span:nth-child(3) { color: var(--t1); }
   .scores { margin-top: 8px; } .scores .score { color: var(--dim); } .scores .score b { color: var(--ink); font-weight: 400; }
   .schbtns { display: grid; grid-template-columns: 1fr 1.3fr 2fr; gap: 8px; }
@@ -475,15 +478,15 @@
   const COLOR_KEYS = Object.keys(COLORS);
   // Shorts: four neutrals plus any team color, so each team wears a two-color uniform.
   const SHORTS = {
-    white: { name: "WHITE", base: [236, 236, 240], shade: [176, 176, 190] },
-    black: { name: "BLACK", base: [52, 52, 66], shade: [34, 34, 44] },
-    gray: { name: "GRAY", base: [128, 128, 140], shade: [88, 88, 100] },
-    navy: { name: "NAVY", base: [30, 40, 100], shade: [18, 24, 64] },
+    white: { name: "WHITE", base: [236, 236, 240], shade: [176, 176, 190], group: "w" },
+    black: { name: "BLACK", base: [52, 52, 66], shade: [34, 34, 44], group: "k" },
+    gray: { name: "GRAY", base: [128, 128, 140], shade: [88, 88, 100], group: "k" },
+    navy: { name: "NAVY", base: [30, 40, 100], shade: [18, 24, 64], group: "b" },
     ...COLORS,
   };
   const SHORTS_KEYS = Object.keys(SHORTS);
-  // Shorts that stand apart from the jersey: never the same color, and no dark shorts under black.
-  const shortsFit = (jersey) => SHORTS_KEYS.filter((k) => k !== jersey && !(jersey === "black" && (k === "gray" || k === "navy")));
+  // Shorts that stand apart from the jersey: never the same color family, and no dark shorts under black.
+  const shortsFit = (jersey) => SHORTS_KEYS.filter((k) => SHORTS[k].group !== COLORS[jersey].group && !(jersey === "black" && k === "navy"));
   // Mostly neutral shorts, sometimes a second team color.
   const randomShorts = (jersey) => { const ok = shortsFit(jersey), n = ok.filter((k) => !COLORS[k]); return pick(Math.random() < 0.7 ? n : ok); };
   // Jersey colors per side, set from the two teams in the current match.
@@ -924,21 +927,36 @@
     });
     sprites.clear();
   }
-  // The NADL (North American Dodgeball League): you and seven CPU teams from around the country. You play each of them once.
-  // Every season draws new teams, and no two teams in the circuit share a color.
-  const CIRCUIT_CITIES = ["BOSTON", "CHICAGO", "DENVER", "ATLANTA", "PHOENIX", "DETROIT", "MEMPHIS", "SEATTLE", "MIAMI", "DALLAS", "OMAHA", "PITTSBURGH"];
+  // The NADL (North American Dodgeball League): 16 teams in two conferences of 8. You're in the West
+  // with seven CPU teams and play each of them once; the East plays its own season alongside.
+  // Every season draws new teams, and no two teams share a uniform (jersey + shorts).
+  const CONF_CITIES = {
+    west: ["SEATTLE", "VANCOUVER", "CALGARY", "EDMONTON", "DENVER", "PHOENIX", "DALLAS", "HOUSTON", "LAS VEGAS", "SALT LAKE", "SAN DIEGO", "OMAHA"],
+    east: ["BOSTON", "NEW YORK", "TORONTO", "MONTREAL", "ATLANTA", "MIAMI", "CHICAGO", "DETROIT", "PITTSBURGH", "PHILADELPHIA", "CHARLOTTE", "MEMPHIS"],
+  };
+  const CONF_NAMES = ["WEST", "EAST"];
   const CIRCUIT_GAMES = 7;
-  function newCircuit(mine) {
-    const cities = shuffle(CIRCUIT_CITIES.filter((c) => c !== mine.city)), names = shuffle(MASCOTS.filter((m) => m !== mine.mascot));
-    const colors = circuitColors(mine);
-    // pow (-2 to 2) is how good a team is in the games simulated without you.
-    return Array.from({ length: CIRCUIT_GAMES }, (_, k) => ({ city: cities[k], mascot: names[k], color: colors[k], shorts: randomShorts(colors[k]), pow: Math.floor(Math.random() * 5) - 2 }));
+  function newLeague(mine) {
+    const names = shuffle(MASCOTS.filter((m) => m !== mine.mascot)), used = new Set([`${mine.color}/${mine.shorts}`]);
+    const conf = (list, n) => {
+      const cities = shuffle(list.filter((c) => c !== mine.city)), colors = circuitColors(mine);
+      return Array.from({ length: n }, (_, k) => {
+        const color = colors[k % colors.length];
+        let shorts;
+        do shorts = randomShorts(color); while (used.has(`${color}/${shorts}`));
+        used.add(`${color}/${shorts}`);
+        // pow (-2 to 2) is how good a team is in the games simulated without you.
+        return { city: cities[k], mascot: names.pop(), color, shorts, pow: Math.floor(Math.random() * 5) - 2 };
+      });
+    };
+    return { circuit: conf(CONF_CITIES.west, CIRCUIT_GAMES), other: conf(CONF_CITIES.east, 8) };
   }
-  // Seven different colors, none from your color's family, so every matchup reads at a glance.
+  // Jersey colors outside your color's family, shuffled, so every team you can face reads at a glance.
   function circuitColors(mine) {
-    return shuffle(COLOR_KEYS.filter((k) => COLORS[k].group !== COLORS[mine.color].group)).slice(0, CIRCUIT_GAMES);
+    return shuffle(COLOR_KEYS.filter((k) => COLORS[k].group !== COLORS[mine.color].group));
   }
-  const MASCOTS = ["THUNDERHAWKS", "IRONCLADS", "RATTLERS", "COMETS", "STINGRAYS", "CYCLONES", "JACKALS", "OUTLAWS", "HAYMAKERS", "RICOCHETS", "FIREBIRDS", "VIPERS"];
+  const MASCOTS = ["THUNDERHAWKS", "IRONCLADS", "RATTLERS", "COMETS", "STINGRAYS", "CYCLONES", "JACKALS", "OUTLAWS", "HAYMAKERS", "RICOCHETS", "FIREBIRDS", "VIPERS",
+    "SLINGERS", "BLITZ", "HAILSTORM", "WRECKERS", "BANDITS", "YETIS", "TORNADOS", "SCORPIONS"];
   const players = [];
   const rollStats = () => Object.fromEntries(STAT_KEYS.map((k) => [k, roll4d6()]));
   // Saves from before the six stats: Speed was Dodge and Dexterity was Catch.
@@ -1961,7 +1979,7 @@
       if (!shortsFit(draft.color).includes(draft.shorts)) draft.shorts = shortsFit(draft.color)[0];
       applyTeams(); saveDraft();
     } else if (act === "sho") { const ok = shortsFit(draft.color); draft.shorts = ok[(ok.indexOf(draft.shorts) + Number(b.dataset.d) + ok.length) % ok.length]; applyTeams(); saveDraft(); }
-    else if (act === "start") { draft.ready = true; draft.circuit = newCircuit(draft); draft.results = []; saveDraft(); SFX.start(); return showSchedule(); }
+    else if (act === "start") { draft.ready = true; Object.assign(draft, newLeague(draft), { results: [], sim: [], simO: [] }); saveDraft(); SFX.start(); return showSchedule(); }
     SFX.select(); render();
   });
   $("lockerBar").addEventListener("submit", (ev) => {
@@ -1986,25 +2004,27 @@
   }
 
   // The season schedule: shown after START SEASON and whenever you come back to the campaign between games.
-  // Round robin for 8 teams: you're team 0 and circuit[k] is team k + 1. In week r you play
-  // circuit[r], and the other six play the three games below. Their games are simulated.
+  // Teams are numbered 0-15: you're 0, circuit[k] (West) is k + 1, other[k] (East) is k + 8.
+  // Round robin for each conference of 8: in week r you play circuit[r] and the other six West teams
+  // play the three games in roundPairs; the East plays all four of its games. Those are simulated.
   const roundPairs = (r) => [1, 2, 3].map((i) => [1 + ((r + i) % 7), 1 + ((r - i + 7) % 7)]);
+  const teamAt = (c, i) => (i === 0 ? c : i < 8 ? c.circuit[i - 1] : c.other[i - 8]);
+  function simGame(c, a, b) {
+    const edge = ((teamAt(c, a).pow || 0) - (teamAt(c, b).pow || 0)) * 0.12;
+    return { a, b, w: Math.random() < 0.5 + edge ? a : b, left: 1 + Math.floor(Math.random() * Math.random() * 5) };
+  }
   // Fill in the other teams' results for every week you've finished. Better teams win more often.
   function simWeeks(c) {
-    c.sim = c.sim || [];
-    for (let r = c.sim.length; r < c.game; r++) {
-      c.sim.push(roundPairs(r).map(([a, b]) => {
-        const edge = ((c.circuit[a - 1].pow || 0) - (c.circuit[b - 1].pow || 0)) * 0.12;
-        return { a, b, w: Math.random() < 0.5 + edge ? a : b, left: 1 + Math.floor(Math.random() * Math.random() * 5) };
-      }));
-    }
+    c.sim = c.sim || []; c.simO = c.simO || [];
+    for (let r = c.sim.length; r < c.game; r++) c.sim.push(roundPairs(r).map(([a, b]) => simGame(c, a, b)));
+    for (let r = c.simO.length; r < c.game; r++) c.simO.push([[0, 1 + r], ...roundPairs(r)].map(([a, b]) => simGame(c, a + 8, b + 8)));
   }
-  const teamAt = (c, i) => (i === 0 ? c : c.circuit[i - 1]);
-  function standings(c) {
-    const rec = Array.from({ length: 8 }, (_, i) => ({ i, w: 0, l: 0 }));
+  // One conference's table (0 = West, 1 = East), best record first.
+  function standings(c, conf) {
+    const rec = Array.from({ length: 16 }, (_, i) => ({ i, w: 0, l: 0 }));
     (c.results || []).forEach((r, k) => { if (!r) return; const o = rec[k + 1]; if (r === "W") { rec[0].w++; o.l++; } else { rec[0].l++; o.w++; } });
-    c.sim.forEach((wk) => wk.forEach((g) => { rec[g.w].w++; rec[g.w === g.a ? g.b : g.a].l++; }));
-    return rec.sort((x, y) => y.w - x.w || x.l - y.l || teamAt(c, x.i).city.localeCompare(teamAt(c, y.i).city));
+    [...c.sim, ...c.simO].forEach((wk) => wk.forEach((g) => { rec[g.w].w++; rec[g.w === g.a ? g.b : g.a].l++; }));
+    return rec.slice(conf * 8, conf * 8 + 8).sort((x, y) => y.w - x.w || x.l - y.l || teamAt(c, x.i).city.localeCompare(teamAt(c, y.i).city));
   }
   // Jersey on top, shorts below.
   const uniform = (t) => `linear-gradient(rgb(${COLORS[t.color].base.join(",")}) 55%, rgb(${(SHORTS[t.shorts] || SHORTS.black).base.join(",")}) 55%)`;
@@ -2016,11 +2036,18 @@
     const c = store.get(CAMP);
     if (!c) return Intro.menu();
     // Campaigns started before the league get one now.
-    if (!c.circuit) { c.circuit = newCircuit(c); c.results = c.results || []; }
+    if (!c.circuit) { Object.assign(c, newLeague(c)); c.results = c.results || []; }
+    // Leagues from before the East conference get one now.
+    if (!c.other) c.other = newLeague(c).other.map((t) => (c.circuit.some((u) => u.color === t.color && u.shorts === t.shorts) ? { ...t, shorts: shortsFit(t.color).find((k) => !c.circuit.some((u) => u.color === t.color && u.shorts === k)) } : t));
     // Circuits drawn before colors were unique get new ones.
     if (new Set(c.circuit.map((t) => t.color)).size < c.circuit.length) { const cs = circuitColors(c); c.circuit.forEach((t, k) => (t.color = cs[k])); }
     // And shorts, for teams drawn before uniforms had two colors.
-    c.circuit.forEach((t) => { if (!SHORTS[t.shorts] || t.shorts === t.color) t.shorts = randomShorts(t.color); });
+    // Then make sure no two teams share a uniform.
+    const seen = new Set([`${c.color}/${c.shorts}`]);
+    [...c.circuit, ...c.other].forEach((t) => {
+      if (!shortsFit(t.color).includes(t.shorts) || seen.has(`${t.color}/${t.shorts}`)) t.shorts = shuffle(shortsFit(t.color)).find((k) => !seen.has(`${t.color}/${k}`));
+      seen.add(`${t.color}/${t.shorts}`);
+    });
     simWeeks(c); store.set(CAMP, c);
     Intro.hide(); Music.play("team");
     const next = c.game, done = next >= c.circuit.length, res = c.results || [];
@@ -2031,16 +2058,15 @@
         return `<div class="week${k === next ? " next" : ""}"><span class="wk">WEEK ${k + 1}</span>${swatch(t)}<span>${t.city} ${t.mascot}</span><span class="res ${r === "W" ? "w" : r === "L" ? "l" : ""}">${r}</span></div>`;
       }).join("");
     } else {
-      const table = standings(c).map((r, k) => {
+      // Both conferences; the top 4 of each make the playoffs, so a line runs under 4th place.
+      const table = (conf) => `<p class="conf">${CONF_NAMES[conf]} CONFERENCE</p>` + standings(c, conf).map((r, k) => {
         const t = teamAt(c, r.i);
-        return `<div class="week${r.i === 0 ? " you" : ""}"><span class="wk">${k + 1}.</span>${swatch(t)}<span>${t.city} ${t.mascot}</span><span class="res">${r.w}-${r.l}</span></div>`;
+        return `<div class="week stand${r.i === 0 ? " you" : ""}${k === 3 ? " cut" : ""}"><span class="wk">${k + 1}.</span>${swatch(t)}<span>${t.city} ${t.mascot}</span><span class="res">${r.w}-${r.l}</span></div>`;
       }).join("");
-      const last = c.sim[c.sim.length - 1];
-      const scores = last ? `<p class="sec">WEEK ${c.sim.length} AROUND THE LEAGUE</p>` + last.map((g) => {
-        const w = teamAt(c, g.w), l = teamAt(c, g.w === g.a ? g.b : g.a);
-        return `<p class="score"><b>${w.mascot}</b> beat ${l.mascot}, ${g.left} left standing</p>`;
-      }).join("") : `<p class="sec">No games played yet.</p>`;
-      body = table + `<div class="scores">${scores}</div>`;
+      const line = (g) => { const w = teamAt(c, g.w), l = teamAt(c, g.w === g.a ? g.b : g.a); return `<p class="score"><b>${w.mascot}</b> beat ${l.mascot}, ${g.left} left</p>`; };
+      const wk = c.sim.length;
+      const scores = wk ? `<p class="sec">WEEK ${wk} AROUND THE LEAGUE</p><p class="conf">WEST</p>${c.sim[wk - 1].map(line).join("")}<p class="conf">EAST</p>${c.simO[wk - 1].map(line).join("")}` : `<p class="sec">No games played yet.</p>`;
+      body = table(0) + table(1) + `<div class="scores">${scores}</div><p class="shint">Top 4 in each conference make the playoffs.</p>`;
     }
     $("schedBox").innerHTML = `<div class="schead"><p class="big">NADL &middot; SEASON ${c.season || 1}</p><p class="lg">NORTH AMERICAN DODGEBALL LEAGUE</p><p>${c.city} ${c.mascot} &middot; <b>${c.w}-${c.l}</b></p></div>
       <div class="weeks">${body}</div>
@@ -2048,10 +2074,10 @@
     $("sched").hidden = false;
     $("schedBox").querySelector(schedTab === "schedule" ? ".bigbtn" : `[data-sc="tab"]`).focus({ preventScroll: true });
   }
-  // Same team, a fresh record and seven new opponents.
+  // Same team, a fresh record and a whole new league.
   function newSeason() {
     const c = store.get(CAMP);
-    Object.assign(c, { season: (c.season || 1) + 1, w: 0, l: 0, game: 0, results: [], sim: [], circuit: newCircuit(c) });
+    Object.assign(c, { season: (c.season || 1) + 1, w: 0, l: 0, game: 0, results: [], sim: [], simO: [] }, newLeague(c));
     store.set(CAMP, c); store.del(SAVE.campaign);
     schedTab = "schedule"; SFX.start(); showSchedule();
   }
