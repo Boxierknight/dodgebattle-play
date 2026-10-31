@@ -2357,6 +2357,8 @@
         }),
       });
       const j = await r.json().catch(() => ({}));
+      // Until Steve clicks FormSubmit's "Activate Form" email, every send comes back like this.
+      if (/activat/i.test(j.message || "")) { say("bad", `NOT DELIVERED YET: THE INBOX NEEDS ACTIVATING. CHECK ${FEEDBACK_TO} FOR THE "ACTIVATE FORM" EMAIL.`); return; }
       if (!r.ok || String(j.success) === "false") throw new Error(j.message || r.status);
       f.message.value = "";
       say("ok", "THANKS! IT'S ON ITS WAY.");
