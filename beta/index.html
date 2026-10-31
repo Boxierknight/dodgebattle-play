@@ -863,10 +863,11 @@
   const FIXED = { o: [24, 18, 20], w: [252, 252, 252], e: [30, 24, 28], m: [190, 110, 90], l: [200, 80, 90], p: [52, 52, 66], P: [34, 34, 44], k: [240, 240, 240], K: [190, 190, 200],
     h: [60, 40, 30], H: [120, 90, 70], b: [224, 96, 28], B: [168, 64, 12], y: [248, 152, 72], g: [230, 230, 240], G: [90, 170, 230] };
   // One player's sprite for one pose: body, hair, then glasses, painted in that player's colors.
+  // Shoes match the jersey.
   // Blue faces left. Out players are dimmed.
   function recolor(pose, p, dim) {
     const look = LOOKS[p.look], skin = SKINS[look.skin], hair = HAIRS[look.hair];
-    const pal = { ...FIXED, s: skin[0], S: skin[1], r: hair[0], R: hair[1], j: TEAM[p.side].base, J: TEAM[p.side].shade, p: TEAM[p.side].sb, P: TEAM[p.side].ss };
+    const pal = { ...FIXED, s: skin[0], S: skin[1], r: hair[0], R: hair[1], j: TEAM[p.side].base, J: TEAM[p.side].shade, p: TEAM[p.side].sb, P: TEAM[p.side].ss, k: TEAM[p.side].base, K: TEAM[p.side].shade };
     const cv = document.createElement("canvas"); const H = POSE_MAPS[pose].length;
     cv.width = SPR_W; cv.height = H;
     const x = cv.getContext("2d"), d = x.createImageData(SPR_W, H), px = d.data;
