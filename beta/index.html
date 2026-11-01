@@ -380,6 +380,17 @@
   // makes FormSubmit email admin@ an "Activate" link; nothing is delivered until that's clicked.
   const FEEDBACK_TO = "admin@ballistaegear.com";
   const FEEDBACK_POST = `https://formsubmit.co/ajax/${FEEDBACK_TO}`;
+  // Play counts through GoatCounter (free, no cookies): page visits plus a few game events.
+  // Empty = off. Never counts on the /beta/ test page or a local preview.
+  const STATS_CODE = "ballistaegear";
+  const statsOn = STATS_CODE && location.protocol === "https:" && !location.pathname.startsWith("/beta");
+  if (statsOn) {
+    const gc = document.createElement("script");
+    gc.async = true; gc.src = "https://gc.zgo.at/count.js";
+    gc.dataset.goatcounter = `https://${STATS_CODE}.goatcounter.com/count`;
+    document.head.appendChild(gc);
+  }
+  const track = (name) => { try { if (statsOn && window.goatcounter && goatcounter.count) goatcounter.count({ path: name, title: name, event: true }); } catch {} };
 
   // ---------- Rules (RULES.md) ----------
   const d20 = () => 1 + Math.floor(Math.random() * 20);
@@ -1800,6 +1811,7 @@
   }
   // Returns an extra line for the game-over message (the series score in the campaign).
   function recordResult(won) {
+    track(`${mode}-game-${won ? "win" : "loss"}`);
     if (mode === "campaign") {
       const c = store.get(CAMP);
       if (c) { const line = seriesGame(c, won); store.set(CAMP, c); setTimeout(() => (won ? SFX.win() : SFX.lose()), 400); return line; }
@@ -1867,7 +1879,7 @@
     phase = "rush_ready"; Intro.hide(); placeRushBalls(); render();
   }
   function startQuick() {
-    mode = "quick";
+    mode = "quick"; track("quick-game-start");
     const mine = randomTeam();
     teams = { red: mine, blue: randomTeam(mine) };
     const names = shuffle(NAMES);
@@ -1924,6 +1936,7 @@
     const c = store.get(CAMP);
     if (c && c.ready) { const sv = store.get(SAVE.campaign); return sv ? resume(sv) : showSchedule(); }
     // A new draft: six unrolled players (three of each body type) to name, roll and style.
+    if (!(c && c.team)) track("campaign-new");
     draft = c && c.team ? c : newDraft();
     if (!draft.city) Object.assign(draft, { city: pick(CITIES), mascot: pick(MASCOTS) });
     if (!COLORS[draft.color]) draft.color = pick(COLOR_KEYS);
@@ -2079,7 +2092,7 @@
       if (!shortsFit(draft.color).includes(draft.shorts)) draft.shorts = shortsFit(draft.color)[0];
       applyTeams(); saveDraft();
     } else if (act === "sho") { const ok = shortsFit(draft.color); draft.shorts = ok[(ok.indexOf(draft.shorts) + Number(b.dataset.d) + ok.length) % ok.length]; applyTeams(); saveDraft(); }
-    else if (act === "start") { draft.ready = true; Object.assign(draft, newLeague(draft), { results: [], sim: [], simO: [] }); saveDraft(); SFX.start(); return showSchedule(); }
+    else if (act === "start") { track("season-start"); draft.ready = true; Object.assign(draft, newLeague(draft), { results: [], sim: [], simO: [] }); saveDraft(); SFX.start(); return showSchedule(); }
     SFX.select(); render();
   });
   $("lockerBar").addEventListener("submit", (ev) => {
@@ -2144,6 +2157,7 @@
   // Top 4 in each conference: 1 v 4 and 2 v 3, then the conference finals, then the Championship.
   const ROUND_NAMES = ["CONFERENCE SEMIFINALS", "CONFERENCE FINALS", "NADL CHAMPIONSHIP"];
   function startPlayoffs(c) {
+    track("season-finished");
     const seed = {}, rnd = [];
     [0, 1].forEach((conf) => {
       const top = standings(c, conf).slice(0, 4).map((r) => r.i);
@@ -2158,7 +2172,7 @@
     const po = c.po, rnd = po.rounds[po.round];
     rnd.forEach((s) => { if (s.w == null && s.a !== 0 && s.b !== 0) Object.assign(s, simSeries(c, s.a, s.b)); });
     if (rnd.some((s) => s.w == null)) return;
-    if (po.round === 2) { po.champ = rnd[0].w; if (po.champ === 0) c.titles = (c.titles || 0) + 1; return; }
+    if (po.round === 2) { po.champ = rnd[0].w; if (po.champ === 0) { c.titles = (c.titles || 0) + 1; track("championship-won"); } return; }
     const w = rnd.map((s) => s.w);
     po.rounds.push(po.round === 0 ? [{ a: w[0], b: w[1] }, { a: w[2], b: w[3] }] : [{ a: w[0], b: w[1] }]);
     po.round++;
@@ -2411,6 +2425,7 @@
       if (!r.ok || String(j.success) === "false") throw new Error(j.message || r.status);
       f.message.value = "";
       say("ok", "THANKS! IT'S ON ITS WAY.");
+      track("feedback-sent");
       SFX.select();
     } catch (e) {
       say("bad", `COULDN'T SEND. TRY AGAIN, OR EMAIL <a href="mailto:${FEEDBACK_TO}">${FEEDBACK_TO}</a>`);
@@ -2425,6 +2440,7 @@
     return c.game < CIRCUIT_GAMES ? `Campaign week ${c.game + 1}` : "Campaign playoffs";
   }
   function showHelp() {
+    track("how-to-play");
     $("helpBox").innerHTML = `<div class="help">
       <div class="schead"><p class="big">HOW TO PLAY</p><p class="lg">TURN-BASED DODGEBALL WITH A D20</p></div>
       <h3>THE GOAL</h3><ul><li>Six players a side. You're the <b>left</b> team. Knock out all six on the right to win.</li></ul>
