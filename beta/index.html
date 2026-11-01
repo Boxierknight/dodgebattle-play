@@ -103,8 +103,9 @@
   .lbform { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; color: var(--dim); }
   .lbform input { font-family: var(--pixel); font-size: 10px; background: #000; color: var(--ink); border: 2px solid var(--ink); padding: 5px 6px; width: 12em; max-width: 42vw; text-transform: uppercase; }
   .box { border: 3px solid var(--ink); border-radius: 6px; box-shadow: inset 0 0 0 2px #000, inset 0 0 0 4px #4a4a5a; padding: 10px 12px; font-family: var(--pixel); font-size: clamp(8px, 1.3vw, 10px); line-height: 1.75; min-width: 0; min-height: 118px; }
-  .msg p { margin: 0; }
-  .msg { border-color: var(--red); }
+  .msg { display: flex; flex-direction: column; gap: 6px; }
+  .msg p { margin: 0; border: 2px solid var(--red); border-radius: 4px; padding: 4px 8px; background: #000; }
+  .msg.alert { border-color: var(--red); }
   .msg.alert .big { color: var(--red); }
   .msg .big { color: var(--gold); }
   .msg .hit { color: var(--red); } .msg .safe { color: var(--green); }
@@ -313,7 +314,7 @@
         <li>Tap one of <b>your</b> players holding a ball (left side), then an opponent, then <b>THROW!</b></li>
         <li>Or tap a teammate to <b>hand off</b> the ball to a better arm.</li>
         <li><b>END TURN</b>, then choose whether to <b>move players</b> into open spots. <b>CONFIRM</b> hands it to the other team.</li>
-        <li><b>Throw clock:</b> you get 30 seconds a turn to pick your throws. If it runs out, every ball you hold goes to the other team.</li>
+        <li><b>Shot clock:</b> while your team holds the majority of the balls (3 or more of 5), you have 30 seconds to throw. It stops once you're down to 2 or fewer. If it runs out, every ball you hold goes to the other team.</li>
       </ul>
     </div>
     <div>
@@ -1777,14 +1778,18 @@
 
 
   // ---------- Throw clock ----------
-  // Red gets 30 seconds of thinking time a turn. It runs only while Red is choosing a throw,
-  // and pauses during throws, menus and a hidden tab. At zero, all of your balls go to the other team.
+  // Shot clock: while Red holds the majority of the balls, Red has 30 seconds to throw. It runs only
+  // while Red is choosing a throw, and pauses during throws, menus and a hidden tab. Once Red drops
+  // to half or fewer it stops and hides; it restarts at 30 the next turn Red starts with the majority.
+  // At zero, all of your balls go to the other team.
   const CLOCK = 30;
   let clock = CLOCK, clockAt = performance.now(), lastTick = 0;
   const resetClock = () => { clock = CLOCK; lastTick = 0; };
   const clockSecs = () => Math.ceil(clock);
-  const clockText = () => `<span id="clock" class="clock${clockSecs() <= 10 ? " low" : ""}">0:${String(clockSecs()).padStart(2, "0")}</span>`;
-  const clockRuns = () => side === "red" && ["pick_thrower", "pick_target", "confirm"].includes(phase) && $("intro").hidden && !document.hidden;
+  const heldBy = (sd) => team(sd).reduce((a, p) => a + p.balls, 0);
+  const redMajority = () => heldBy("red") * 2 > heldBy("red") + heldBy("blue");
+  const clockText = () => !redMajority() ? "" : `<span id="clock" class="clock${clockSecs() <= 10 ? " low" : ""}">0:${String(clockSecs()).padStart(2, "0")}</span>`;
+  const clockRuns = () => side === "red" && redMajority() && ["pick_thrower", "pick_target", "confirm"].includes(phase) && $("intro").hidden && !document.hidden;
   setInterval(() => {
     const now = performance.now(), dt = Math.min((now - clockAt) / 1000, 0.5);
     clockAt = now;
@@ -1801,7 +1806,7 @@
     team("red").forEach((p) => (p.balls = 0));
     give("blue", n);
     sel = null; tgt = null; handoff = false; phase = "busy";
-    message = `<p class="big hit">THROW CLOCK!</p><p>Time's up. You forfeit ${n} ball${n === 1 ? "" : "s"} to the ${tn("blue")}.</p>`;
+    message = `<p class="big hit">SHOT CLOCK!</p><p>Time's up. You forfeit ${n} ball${n === 1 ? "" : "s"} to the ${tn("blue")}.</p>`;
     SFX.whistle(); render();
     await wait(1800);
     finishTurn();
@@ -2384,7 +2389,7 @@
         <li>Tap a player holding a ball, then an opponent, then <b>THROW!</b></li>
         <li>Tap a teammate instead to <b>hand off</b> the ball to a better arm.</li>
         <li><b>END TURN</b>, then move players into open spots if you want.</li>
-        <li>You get <b>30 seconds</b> a turn. If the clock runs out, your balls go to the other team.</li></ul>
+        <li><b>Shot clock:</b> while you hold the majority of the balls (3 or more of 5), you have <b>30 seconds</b> to throw. It stops once you're down to 2 or fewer, and starts again at 30 the next time you have the majority. If it runs out, your balls go to the other team.</li></ul>
       <h3>THE DICE</h3><ul>
         <li>Every throw is <b>d20 + Throwing</b> against the defender's <b>d20 + their defense</b>. Ties go to the defender.</li>
         <li><b>Front row</b> throws +1 but defends &minus;1. <b>Back row</b> throws &minus;1 but defends +1.</li>
